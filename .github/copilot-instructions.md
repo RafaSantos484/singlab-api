@@ -460,6 +460,7 @@ npm run logs       # View Firebase Function logs
 8. **Error responses** - Use NestJS `HttpException` for consistent error handling
 9. **Test isolation** - Each test should be independent and not rely on test order
 10. **No console.log in production** - Use proper NestJS logger or structured logging
+11. **Keep documentation in sync** - Whenever you modify code, verify the equivalent documentation to check if it needs to be updated
 
 ## Related Configuration Files
 - `tsconfig.json` - TypeScript configuration (strict mode enabled)
