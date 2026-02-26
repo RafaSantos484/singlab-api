@@ -30,13 +30,14 @@ Enforce branch naming conventions and merge rules to maintain the integrity of t
 
 #### Branch Rules
 
-**For the default branch:**
+**For production branches (`main` or `master`):**
 - ✅ PRs only from `develop` or `hotfix/*`
 - ❌ Rejects direct branches or other types
+- ✅ All changes must be via Pull Request with approval
 
-**For `develop`:**
+**For `develop`**:
 - ✅ `feat/*`, `feature/*`, `fix/*`, `chore/*`, `refactor/*`, `style/*`, `ci/*`, `test/*`, `docs/*`, `hotfix/*`
-- ✅ Default branch (back-merge allowed)
+- ✅ Back-merges from `main` or `master` allowed
 - ❌ Rejects random branches
 
 ---
@@ -101,7 +102,7 @@ Validate code in pull requests and push to `develop` branch with multiple parall
 ## 3️⃣ Deploy to Production (`deploy.yml`)
 
 ### 📝 Objective
-Secure and validated deployment only to the default branch with multiple layers of protection.
+Secure and validated deployment only to production branches (`main` or `master`) with multiple layers of protection.
 
 ### ✨ Implemented Improvements
 
@@ -199,7 +200,7 @@ python3 -m json.tool "${{ runner.temp }}/secrets/gcp-key.json" > /dev/null
 on:
   pull_request:
 ```
-- Runs on PRs to any base branch, with job-level gating for default branch or `develop`
+- Runs on PRs to any branch, with job-level gating for production branches (`main`/`master`) or `develop`
 
 ### CI
 ```yaml
@@ -208,7 +209,7 @@ on:
   push:
     branches: [develop]
 ```
-- PRs on any branch, with job-level gating for default branch or `develop`
+- PRs on any branch, with job-level gating for production branches (`main`/`master`) or `develop`
 - Direct push to `develop` (after merge)
 
 ### Deploy
@@ -217,7 +218,7 @@ on:
   push:
     branches: ['**']
 ```
-- Only pushes to the default branch proceed, enforced via job-level condition
+- Only pushes to production branches (`main` or `master`) proceed, enforced via job-level condition
 
 ---
 
@@ -262,9 +263,9 @@ git push origin feat/my-feature
 # GitHub Actions will run: Branch Validation, CI (lint, type-check, test, build)
 # After merge to develop: CI will run again
 
-# PR to the default branch (via develop or hotfix)
+# PR to production branches (main or master) (via develop or hotfix)
 # Only if it came from develop or hotfix/*
-# After merge to the default branch: Deploy to production
+# After merge to production branch: Deploy to production
 ```
 
 ### 3. Monitoring
