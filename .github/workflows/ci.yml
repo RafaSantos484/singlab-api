@@ -18,67 +18,64 @@ permissions:
 jobs:
   lint:
     if: >-
-      ${{ github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == github.event.repository.default_branch)
-        || (github.event_name == 'push' && github.ref_name == 'develop') }}
+      ${{ github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == github.event.repository.default_branch) || (github.event_name == 'push' && github.ref_name == 'develop') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js 22.x
         uses: actions/setup-node@v4
         with:
           node-version: '22.x'
           cache: 'npm'
-      
+
       - name: Install dependencies
         run: npm ci --prefer-offline
-      
+
       - name: Run linter
         run: npm run lint
 
   type-check:
     if: >-
-      ${{ github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == github.event.repository.default_branch)
-        || (github.event_name == 'push' && github.ref_name == 'develop') }}
+      ${{ github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == github.event.repository.default_branch) || (github.event_name == 'push' && github.ref_name == 'develop') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js 22.x
         uses: actions/setup-node@v4
         with:
           node-version: '22.x'
           cache: 'npm'
-      
+
       - name: Install dependencies
         run: npm ci --prefer-offline
-      
+
       - name: Verify TypeScript compilation
         run: npx tsc --noEmit
 
   test:
     if: >-
-      ${{ github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == github.event.repository.default_branch)
-        || (github.event_name == 'push' && github.ref_name == 'develop') }}
+      ${{ github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == github.event.repository.default_branch) || (github.event_name == 'push' && github.ref_name == 'develop') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js 22.x
         uses: actions/setup-node@v4
         with:
           node-version: '22.x'
           cache: 'npm'
-      
+
       - name: Install dependencies
         run: npm ci --prefer-offline
-      
+
       - name: Run tests with coverage
         run: npm run test:coverage
-      
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
@@ -86,7 +83,7 @@ jobs:
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false
-      
+
       - name: Archive coverage reports
         uses: actions/upload-artifact@v4
         if: always()
@@ -97,26 +94,25 @@ jobs:
 
   build:
     if: >-
-      ${{ github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == github.event.repository.default_branch)
-        || (github.event_name == 'push' && github.ref_name == 'develop') }}
+      ${{ github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == github.event.repository.default_branch) || (github.event_name == 'push' && github.ref_name == 'develop') }}
     needs: [lint, type-check, test]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js 22.x
         uses: actions/setup-node@v4
         with:
           node-version: '22.x'
           cache: 'npm'
-      
+
       - name: Install dependencies
         run: npm ci --prefer-offline
-      
+
       - name: Build application
         run: npm run build
-      
+
       - name: Verify build output
         run: |
           if [[ ! -f "dist/main.js" ]]; then
@@ -124,7 +120,7 @@ jobs:
             exit 1
           fi
           echo "::notice::Build successful - dist/main.js created"
-      
+
       - name: Archive build artifacts
         uses: actions/upload-artifact@v4
         with:

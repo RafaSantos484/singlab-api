@@ -1,6 +1,7 @@
 # Firebase Service Account Credentials
 
-This guide explains how to set up and configure Firebase service account credentials for your application.
+This guide explains how to set up and configure Firebase service account
+credentials for the SingLab API.
 
 ## Overview
 
@@ -12,9 +13,9 @@ The `credentials.json` file contains Firebase service account credentials used t
 - Cloud Storage access
 - Other Firebase services
 
-## ⚠️ Security Important
+## Security Important
 
-**NEVER commit `credentials.json` to version control!**
+Never commit `credentials.json` to version control.
 
 - Add `credentials.json` to `.gitignore` (already done)
 - Only commit `credentials.json.example` with placeholder values
@@ -37,7 +38,7 @@ The `credentials.json` file contains Firebase service account credentials used t
 # Copy the downloaded credentials.json to your project root
 cp ~/Downloads/credentials.json .
 
-# DO NOT commit this file! (already in .gitignore)
+# Do not commit this file (already in .gitignore)
 ```
 
 ### 3. Update credentials.json.example
@@ -143,12 +144,12 @@ export FIREBASE_CREDENTIALS=$(base64 credentials.json)
 
 ```
 .
-├── credentials.json           # Actual credentials (gitignored) ⚠️
-├── credentials.json.example   # Template for reference ✅
+├── credentials.json           # Actual credentials (gitignored)
+├── credentials.json.example   # Template for reference
 ├── .gitignore                 # Includes credentials.json
 └── src/
-    └── config/
-        └── firebase.config.ts # Firebase initialization
+  └── config/
+    └── firebase.config.ts # Firebase initialization
 ```
 
 ## Troubleshooting
@@ -182,7 +183,7 @@ Ensure the private key format is correct:
 
 ## Best Practices
 
-✅ **DO:**
+Do:
 - Store credentials securely (use secret managers)
 - Rotate credentials regularly
 - Use different credentials per environment
@@ -190,7 +191,7 @@ Ensure the private key format is correct:
 - Document setup in `credentials.json.example`
 - Use environment variables in production
 
-❌ **DON'T:**
+Do not:
 - Commit `credentials.json` to Git
 - Hardcode credentials in source code
 - Share credentials via email/chat

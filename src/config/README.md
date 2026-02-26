@@ -1,6 +1,6 @@
 # Environment Configuration
 
-This folder contains centralized application configurations, following hexagonal architecture principles.
+This folder contains centralized application configuration for the SingLab API.
 
 ## Env.config.ts
 
@@ -37,7 +37,7 @@ const origins = Env.corsOrigin; // '*' or ['http://localhost:3000', 'https://exa
 
 Flag to skip authentication validation. Default: `false`
 
-⚠️ **WARNING**: Never set to `true` in production!
+Warning: never set this to `true` in production.
 
 ```typescript
 const skipAuth = Env.skipAuth; // true or false
