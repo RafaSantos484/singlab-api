@@ -9,6 +9,7 @@ import { INestApplication } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { Env } from './config/env.config';
 import { Utils } from './utils';
+import { FirebaseAuthGuard } from './auth/firebase-auth.guard';
 import express from 'express';
 import cors from 'cors';
 import { onRequest } from 'firebase-functions/v2/https';
@@ -60,6 +61,9 @@ async function createNestApplication(): Promise<INestApplication> {
     new ExpressAdapter(expressApp),
     { logger: loggerScopes, bodyParser: false },
   );
+
+  const authGuard = app.get(FirebaseAuthGuard);
+  app.useGlobalGuards(authGuard);
 
   // Configure CORS to allow frontend requests
   app.enableCors({
