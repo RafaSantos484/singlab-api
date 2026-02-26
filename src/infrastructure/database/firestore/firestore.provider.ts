@@ -37,11 +37,9 @@ export class FirestoreProvider {
         this.firestore.settings({
           ignoreUndefinedProperties: true,
         });
-      } catch (settingsError) {
+      } catch {
         // Settings already configured, ignore error
-        FirestoreProvider.logger.debug(
-          'Firestore settings already configured',
-        );
+        FirestoreProvider.logger.debug('Firestore settings already configured');
       }
 
       FirestoreProvider.logger.log('Firestore instance initialized');
