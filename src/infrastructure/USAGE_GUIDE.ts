@@ -171,10 +171,7 @@ export class AudioUploadRepository extends FirestoreRepository<AudioUpload> {
         hasPreviousPage: page > 1,
       };
     } catch (error) {
-      this.logger.error(
-        `Error finding uploads for user ${userId}`,
-        error,
-      );
+      this.logger.error(`Error finding uploads for user ${userId}`, error);
       throw error;
     }
   }
@@ -228,7 +225,10 @@ export class AudioUploadRepository extends FirestoreRepository<AudioUpload> {
    * @param gcsPath - Path to processed file in Google Cloud Storage
    * @returns Updated upload
    */
-  async markAsCompleted(uploadId: string, gcsPath: string): Promise<AudioUpload> {
+  async markAsCompleted(
+    uploadId: string,
+    gcsPath: string,
+  ): Promise<AudioUpload> {
     const upload = await this.findById(uploadId);
     if (!upload) {
       throw new Error(`Upload ${uploadId} not found`);

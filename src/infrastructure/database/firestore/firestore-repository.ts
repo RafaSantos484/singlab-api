@@ -56,9 +56,10 @@ import { IRepository, Page, PaginationParams } from '../interfaces';
  *   }
  * }
  */
-export abstract class FirestoreRepository<TEntity, TId = string>
-  implements IRepository<TEntity, TId>
-{
+export abstract class FirestoreRepository<
+  TEntity,
+  TId = string,
+> implements IRepository<TEntity, TId> {
   protected readonly logger: Logger;
   protected readonly db: admin.firestore.Firestore;
 
@@ -147,9 +148,7 @@ export abstract class FirestoreRepository<TEntity, TId = string>
    * @param entities - Entities to save
    * @returns Saved entities
    */
-  async saveBatch(
-    entities: Array<TEntity & { id?: TId }>,
-  ): Promise<TEntity[]> {
+  async saveBatch(entities: Array<TEntity & { id?: TId }>): Promise<TEntity[]> {
     try {
       const batchSize = 500;
       const batches = Math.ceil(entities.length / batchSize);
@@ -165,9 +164,7 @@ export abstract class FirestoreRepository<TEntity, TId = string>
           const docId = (persistence as any).id || this.generateId();
 
           batch.set(
-            this.db
-              .collection(this.collectionName)
-              .doc(String(docId)),
+            this.db.collection(this.collectionName).doc(String(docId)),
             {
               ...persistence,
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -183,9 +180,7 @@ export abstract class FirestoreRepository<TEntity, TId = string>
       const ids = entities.map(
         (e) => (e as any).id || this.generateId(),
       ) as TId[];
-      const results = await Promise.all(
-        ids.map((id) => this.findById(id)),
-      );
+      const results = await Promise.all(ids.map((id) => this.findById(id)));
       return results.filter(Boolean) as TEntity[];
     } catch (error) {
       this.logger.error('Error batch saving entities', error);
@@ -201,9 +196,7 @@ export abstract class FirestoreRepository<TEntity, TId = string>
    */
   async delete(id: TId): Promise<boolean> {
     try {
-      const docRef = this.db
-        .collection(this.collectionName)
-        .doc(String(id));
+      const docRef = this.db.collection(this.collectionName).doc(String(id));
       const doc = await docRef.get();
 
       if (!doc.exists) {
@@ -268,8 +261,12 @@ export abstract class FirestoreRepository<TEntity, TId = string>
     params: PaginationParams,
   ): Promise<Page<TEntity>> {
     try {
-      const { page, limit, orderBy = 'createdAt', orderDirection = 'desc' } =
-        params;
+      const {
+        page,
+        limit,
+        orderBy = 'createdAt',
+        orderDirection = 'desc',
+      } = params;
 
       const offset = (page - 1) * limit;
 
@@ -292,7 +289,10 @@ export abstract class FirestoreRepository<TEntity, TId = string>
         );
       }
 
-      const snapshot = await query.offset(offset).limit(limit + 1).get();
+      const snapshot = await query
+        .offset(offset)
+        .limit(limit + 1)
+        .get();
 
       const items = snapshot.docs.map((doc) => {
         const data = {

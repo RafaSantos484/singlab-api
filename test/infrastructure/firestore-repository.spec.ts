@@ -4,7 +4,11 @@
  */
 
 import { Test, TestingModule } from '@nestjs/testing';
-import { FirestoreRepository, FirestoreProvider, BaseMapper } from '@/infrastructure';
+import {
+  FirestoreRepository,
+  FirestoreProvider,
+  BaseMapper,
+} from '@/infrastructure';
 import * as admin from 'firebase-admin';
 
 /**
@@ -108,9 +112,7 @@ describe('FirestoreRepository (Unit Tests)', () => {
       getFirestore: jest.fn().mockReturnValue(mockDb),
     };
 
-    repository = new TestEntityRepository(
-      mockFirestoreProvider as any
-    );
+    repository = new TestEntityRepository(mockFirestoreProvider as any);
   });
 
   describe('findById', () => {
@@ -152,7 +154,9 @@ describe('FirestoreRepository (Unit Tests)', () => {
     it('should throw error when query fails', async () => {
       mockDb.get.mockRejectedValueOnce(new Error('Database error'));
 
-      await expect(repository.findById('123')).rejects.toThrow('Database error');
+      await expect(repository.findById('123')).rejects.toThrow(
+        'Database error',
+      );
     });
   });
 
@@ -392,9 +396,7 @@ describe('FirestoreUnitOfWork (Unit Tests)', () => {
     };
 
     const { FirestoreUnitOfWork } = await import('@/infrastructure');
-    const unitOfWork = new FirestoreUnitOfWork(
-      mockFirestoreProvider as any
-    );
+    const unitOfWork = new FirestoreUnitOfWork(mockFirestoreProvider as any);
 
     const callback = jest.fn().mockResolvedValue('result');
     const result = await unitOfWork.run(callback);
@@ -413,14 +415,12 @@ describe('FirestoreUnitOfWork (Unit Tests)', () => {
     };
 
     const { FirestoreUnitOfWork } = await import('@/infrastructure');
-    const unitOfWork = new FirestoreUnitOfWork(
-      mockFirestoreProvider as any
-    );
+    const unitOfWork = new FirestoreUnitOfWork(mockFirestoreProvider as any);
 
     await expect(
       unitOfWork.run(async () => {
         throw new Error('Operation failed');
-      })
+      }),
     ).rejects.toThrow();
   });
 });

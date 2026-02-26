@@ -50,9 +50,7 @@ export class FirestoreUnitOfWork implements IUnitOfWork {
    * @returns Result of the callback
    * @throws Error if transaction fails; automatically rolled back
    */
-  async run<T>(
-    fn: (repos: Record<string, any>) => Promise<T>,
-  ): Promise<T> {
+  async run<T>(fn: (repos: Record<string, any>) => Promise<T>): Promise<T> {
     try {
       return await this.db.runTransaction(async (transaction) => {
         // Create transaction-aware context that can be passed to repositories
