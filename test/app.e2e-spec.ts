@@ -5,8 +5,10 @@ import { AppModule } from '../src/app.module';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication;
+  const originalEnv = process.env;
 
   beforeEach(async () => {
+    process.env = { ...originalEnv, SKIP_AUTH: 'true' };
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -16,6 +18,7 @@ describe('AppController (e2e)', () => {
   });
 
   afterEach(async () => {
+    process.env = originalEnv;
     await app.close();
   });
 
