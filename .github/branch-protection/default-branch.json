@@ -1,0 +1,87 @@
+{
+  "id": 13273055,
+  "name": "default-branch",
+  "description": "Default branch protection rules - production release branch with strict requirements",
+  "target": "branch",
+  "source_type": "Repository",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "exclude": [],
+      "include": [
+        "~DEFAULT_BRANCH"
+      ]
+    }
+  },
+  "rules": [
+    {
+      "type": "non_fast_forward",
+      "description": "Prevent force pushes to maintain release history"
+    },
+    {
+      "type": "pull_request",
+      "description": "Require pull requests for all changes to the default branch",
+      "parameters": {
+        "required_approving_review_count": 1,
+        "dismiss_stale_reviews_on_push": false,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": true,
+        "allowed_merge_methods": [
+          "merge",
+          "squash",
+          "rebase"
+        ]
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "description": "All CI/CD checks must pass before merge to production",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {
+            "context": "Branch Validation / check-source-branch-default",
+            "integration_id": 15368,
+            "description": "Validates only develop or hotfix/* branches can merge to the default branch"
+          },
+          {
+            "context": "CI / lint",
+            "integration_id": 15368,
+            "description": "ESLint + Prettier checks"
+          },
+          {
+            "context": "CI / type-check",
+            "integration_id": 15368,
+            "description": "TypeScript compilation check",
+            "added_in_workflow": "2026-02-26"
+          },
+          {
+            "context": "CI / test",
+            "integration_id": 15368,
+            "description": "Jest test suite with coverage"
+          },
+          {
+            "context": "CI / build",
+            "integration_id": 15368,
+            "description": "Build verification and artifact creation"
+          }
+        ]
+      }
+    },
+    {
+      "type": "creation",
+      "description": "Prevent direct branch creation from the default branch"
+    },
+    {
+      "type": "deletion",
+      "description": "Prevent accidental deletion of the default branch"
+    },
+    {
+      "type": "update",
+      "description": "Restrict updates to the default branch"
+    }
+  ],
+  "bypass_actors": []
+}

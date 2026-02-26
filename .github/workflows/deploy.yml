@@ -1,0 +1,180 @@
+name: Deploy to Production
+
+on:
+  push:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  deployments: write
+  statuses: write
+
+jobs:
+  validate:
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      should-deploy: ${{ steps.check-deploy.outputs.result }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+      
+      - name: Verify TypeScript compilation
+        run: npx tsc --noEmit
+      
+      - name: Run linter
+        run: npm run lint
+      
+      - name: Run tests
+        run: npm run test:coverage
+      
+      - name: Build application
+        run: npm run build
+      
+      - name: Verify build artifacts
+        id: check-deploy
+        run: |
+          if [[ ! -f "dist/main.js" ]]; then
+            echo "::error::Build validation failed: dist/main.js not found"
+            exit 1
+          fi
+          if [[ ! -f ".env.prod" ]]; then
+            echo "::error::Production environment file not found"
+            echo "::notice::Use FIREBASE_ENV_PROD secret in GitHub"
+            exit 1
+          fi
+          echo "result=true" >> $GITHUB_OUTPUT
+          echo "::notice::✓ All validations passed"
+
+  deploy:
+    needs: validate
+    if: needs.validate.result == 'success' && needs.validate.outputs.should-deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: https://firebase.google.com/console/project/${{ vars.FIREBASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+      
+      - name: Build application
+        run: npm run build
+      
+      - name: Prepare Firebase credentials
+        run: |
+          mkdir -p "${{ runner.temp }}/secrets"
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "${{ runner.temp }}/secrets/gcp-key.json"
+          chmod 600 "${{ runner.temp }}/secrets/gcp-key.json"
+          
+          # Validate JSON
+          if ! python3 -m json.tool "${{ runner.temp }}/secrets/gcp-key.json" > /dev/null; then
+            echo "::error::Invalid Firebase service account JSON"
+            exit 1
+          fi
+          echo "::notice::✓ Firebase credentials validated"
+      
+      - name: Prepare environment file
+        run: |
+          mkdir -p "${{ runner.temp }}/config"
+          echo '${{ secrets.FIREBASE_ENV_PROD }}' > "${{ runner.temp }}/config/.env.prod"
+          chmod 600 "${{ runner.temp }}/config/.env.prod"
+          echo "::notice::✓ Production environment configured"
+      
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+      
+      - name: Validate Firebase configuration
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/secrets/gcp-key.json
+        run: |
+          firebase use prod --token "${{ secrets.FIREBASE_CI_TOKEN }}" 2>/dev/null || {
+            echo "::warning::Could not validate Firebase project"
+          }
+          firebase list --token "${{ secrets.FIREBASE_CI_TOKEN }}" --json 2>/dev/null | head -5
+      
+      - name: Deploy to Firebase Functions
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/secrets/gcp-key.json
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_CI_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "::notice::Starting deployment to Firebase Functions..."
+          
+          firebase use prod
+          firebase deploy \
+            --only functions \
+            --force \
+            --non-interactive \
+            --token "$FIREBASE_TOKEN"
+          
+          echo "::notice::✓ Deployment completed successfully"
+      
+      - name: Verify deployment
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_CI_TOKEN }}
+        run: |
+          echo "::notice::Verifying deployment..."
+          firebase functions:list --token "$FIREBASE_TOKEN"
+          echo "::notice::✓ Function deployed and active"
+      
+      - name: Create deployment status
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const ref = context.ref.split('/')[2];
+            const state = context.job.status === 'success' ? 'success' : 'failure';
+            
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: context.deploymentId,
+              state: state,
+              description: state === 'success' 
+                ? '✓ Deployed to Firebase Functions (prod)'
+                : '✗ Deployment failed',
+              environment_url: 'https://firebase.google.com/console/project/${{ vars.FIREBASE_PROJECT_ID }}'
+            });
+
+  notify:
+    needs: [validate, deploy]
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check deployment status
+        run: |
+          if [[ "${{ needs.validate.result }}" == "failure" ]]; then
+            echo "::error::Validation failed - no deployment was attempted"
+            exit 1
+          fi
+          
+          if [[ "${{ needs.deploy.result }}" == "failure" ]]; then
+            echo "::error::Deployment to Firebase failed"
+            exit 1
+          fi
+          
+          echo "::notice::✓ Deployment workflow completed successfully"

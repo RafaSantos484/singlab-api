@@ -1,0 +1,83 @@
+{
+  "id": 13272495,
+  "name": "develop",
+  "description": "Develop branch protection rules - enforces code quality, reviews, and CI/CD checks",
+  "target": "branch",
+  "source_type": "Repository",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "exclude": [],
+      "include": [
+        "refs/heads/develop"
+      ]
+    }
+  },
+  "rules": [
+    {
+      "type": "deletion",
+      "description": "Prevent accidental deletion of develop branch"
+    },
+    {
+      "type": "non_fast_forward",
+      "description": "Prevent force pushes to maintain history"
+    },
+    {
+      "type": "creation",
+      "description": "Prevent direct branch creation from develop"
+    },
+    {
+      "type": "pull_request",
+      "description": "Require pull requests for all changes",
+      "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": false,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": false,
+        "allowed_merge_methods": [
+          "merge",
+          "squash",
+          "rebase"
+        ]
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "description": "All CI/CD checks must pass before merge",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {
+            "context": "Branch Validation / check-source-branch-develop",
+            "integration_id": 15368,
+            "description": "Validates branch naming conventions"
+          },
+          {
+            "context": "CI / lint",
+            "integration_id": 15368,
+            "description": "ESLint + Prettier checks"
+          },
+          {
+            "context": "CI / type-check",
+            "integration_id": 15368,
+            "description": "TypeScript compilation check",
+            "added_in_workflow": "2026-02-26"
+          },
+          {
+            "context": "CI / test",
+            "integration_id": 15368,
+            "description": "Jest test suite with coverage"
+          },
+          {
+            "context": "CI / build",
+            "integration_id": 15368,
+            "description": "Build verification and artifact creation"
+          }
+        ]
+      }
+    }
+  ],
+  "bypass_actors": []
+}
