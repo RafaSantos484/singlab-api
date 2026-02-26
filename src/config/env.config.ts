@@ -113,8 +113,6 @@ export class Env {
 
 // Load environment variables from .env.{NODE_ENV} file if NODE_ENV is set
 if (Env.nodeEnv) {
-  console.log(
-    `Loading environment variables from file: .env.${Env.nodeEnv}`,
-  );
+  console.log(`Loading environment variables from file: .env.${Env.nodeEnv}`);
   config({ path: `.env.${Env.nodeEnv}` });
 }
