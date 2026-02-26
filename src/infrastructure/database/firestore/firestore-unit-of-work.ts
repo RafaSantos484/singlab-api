@@ -84,17 +84,17 @@ export class FirestoreUnitOfWork implements IUnitOfWork {
     try {
       return await this.db.runTransaction(async (transaction) => {
         // Bind transaction context to repositories
-        const boundRepos = Object.entries(repositories).reduce(
-          (acc, [key, repo]) => {
-            acc[key] = {
-              ...repo,
-              // If repositories have transaction support, pass it
-              _transaction: transaction,
-            };
-            return acc;
-          },
-          {} as Record<string, any>,
-        );
+        const boundRepos = Object.entries(repositories).reduce<
+          Record<string, any>
+        >((acc, [key, repo]) => {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          acc[key] = {
+            ...repo,
+            // If repositories have transaction support, pass it
+            _transaction: transaction,
+          };
+          return acc;
+        }, {});
 
         return fn(boundRepos);
       });

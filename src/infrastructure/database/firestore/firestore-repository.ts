@@ -1,6 +1,8 @@
 import { Logger } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 import { IRepository, Page, PaginationParams } from '../interfaces';
+import { BaseMapper } from '../mappers/mapper.base';
+import { FirestoreProvider } from './firestore.provider';
 
 /**
  * Base Firestore repository implementation.
@@ -58,7 +60,7 @@ import { IRepository, Page, PaginationParams } from '../interfaces';
  */
 export abstract class FirestoreRepository<
   TEntity,
-  TId = string,
+  TId extends string | number = string,
 > implements IRepository<TEntity, TId> {
   protected readonly logger: Logger;
   protected readonly db: admin.firestore.Firestore;
@@ -71,9 +73,9 @@ export abstract class FirestoreRepository<
    * @param mapper - Mapper instance for domain/persistence conversion
    */
   constructor(
-    firestore: any,
+    firestore: FirestoreProvider,
     protected readonly collectionName: string,
-    protected readonly mapper: any,
+    protected readonly mapper: BaseMapper<TEntity, any>,
   ) {
     this.logger = new Logger(this.constructor.name);
     this.db = firestore.getFirestore();
@@ -116,13 +118,16 @@ export abstract class FirestoreRepository<
    */
   async save(entity: TEntity & { id?: TId }): Promise<TEntity> {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const persistence = this.mapper.toPersistence(entity);
-      const docId = (persistence as any).id || this.generateId();
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      const docId = (persistence.id || this.generateId()) as TId;
 
       await this.db
         .collection(this.collectionName)
         .doc(String(docId))
         .set(
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
           {
             ...persistence,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -130,7 +135,7 @@ export abstract class FirestoreRepository<
           { merge: true },
         );
 
-      const saved = await this.findById(docId as any);
+      const saved = await this.findById(docId);
       if (!saved) {
         throw new Error('Failed to retrieve saved entity');
       }
@@ -154,14 +159,16 @@ export abstract class FirestoreRepository<
       const batches = Math.ceil(entities.length / batchSize);
 
       for (let i = 0; i < batches; i++) {
-        let batch = this.db.batch();
+        const batch = this.db.batch();
         const start = i * batchSize;
         const end = Math.min((i + 1) * batchSize, entities.length);
 
         for (let j = start; j < end; j++) {
           const entity = entities[j];
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           const persistence = this.mapper.toPersistence(entity);
-          const docId = (persistence as any).id || this.generateId();
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          const docId = (persistence.id || this.generateId()) as TId;
 
           batch.set(
             this.db.collection(this.collectionName).doc(String(docId)),
@@ -177,11 +184,12 @@ export abstract class FirestoreRepository<
       }
 
       // Fetch saved entities
-      const ids = entities.map(
-        (e) => (e as any).id || this.generateId(),
-      ) as TId[];
+      const ids = entities.map((e) => {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        return ((e as any).id || this.generateId()) as TId;
+      });
       const results = await Promise.all(ids.map((id) => this.findById(id)));
-      return results.filter(Boolean) as TEntity[];
+      return results.filter((r): r is TEntity => r !== null);
     } catch (error) {
       this.logger.error('Error batch saving entities', error);
       throw error;

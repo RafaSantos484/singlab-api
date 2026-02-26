@@ -116,6 +116,8 @@ import {
 
 @Injectable()
 export class AudioUploadRepository extends FirestoreRepository<AudioUpload> {
+  declare protected readonly mapper: AudioUploadMapper;
+
   constructor(firestore: FirestoreProvider) {
     super(firestore, 'audio_uploads', new AudioUploadMapper());
   }
@@ -152,9 +154,9 @@ export class AudioUploadRepository extends FirestoreRepository<AudioUpload> {
         .limit(limit + 1)
         .get();
 
-      const items = snapshot.docs.map((doc) => {
+      const items: AudioUpload[] = snapshot.docs.map((doc) => {
         const data = { id: doc.id, ...doc.data() };
-        return this.mapper.toDomain(data as any);
+        return this.mapper.toDomain(data as AudioUploadDocument);
       });
 
       const hasNextPage = items.length > limit;
@@ -192,7 +194,7 @@ export class AudioUploadRepository extends FirestoreRepository<AudioUpload> {
 
       return snapshot.docs.map((doc) => {
         const data = { id: doc.id, ...doc.data() };
-        return this.mapper.toDomain(data as any);
+        return this.mapper.toDomain(data as AudioUploadDocument);
       });
     } catch (error) {
       this.logger.error('Error finding pending uploads', error);

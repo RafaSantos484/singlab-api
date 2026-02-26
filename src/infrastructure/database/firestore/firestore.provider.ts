@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 import { credential } from 'firebase-admin';
+import { readFileSync } from 'fs';
 
 /**
  * Firestore provider factory.
@@ -31,9 +32,17 @@ export class FirestoreProvider {
       this.firestore = admin.firestore(app);
 
       // Optional: Set Firestore settings for performance
-      this.firestore.settings({
-        ignoreUndefinedProperties: true,
-      });
+      // Only set settings on first initialization
+      try {
+        this.firestore.settings({
+          ignoreUndefinedProperties: true,
+        });
+      } catch (settingsError) {
+        // Settings already configured, ignore error
+        FirestoreProvider.logger.debug(
+          'Firestore settings already configured',
+        );
+      }
 
       FirestoreProvider.logger.log('Firestore instance initialized');
 
@@ -59,9 +68,10 @@ export class FirestoreProvider {
         process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
       if (serviceAccount) {
-        const credentials =
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        const credentials: admin.ServiceAccount =
           typeof serviceAccount === 'string'
-            ? require(serviceAccount)
+            ? JSON.parse(readFileSync(serviceAccount, 'utf-8'))
             : JSON.parse(serviceAccount);
 
         return admin.initializeApp({
