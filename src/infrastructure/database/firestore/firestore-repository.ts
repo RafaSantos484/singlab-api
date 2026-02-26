@@ -189,7 +189,7 @@ export abstract class FirestoreRepository<
         return ((e as any).id || this.generateId()) as TId;
       });
       const results = await Promise.all(ids.map((id) => this.findById(id)));
-      return results.filter((r): r is TEntity => r !== null);
+      return results.filter((r) => r !== null) as TEntity[];
     } catch (error) {
       this.logger.error('Error batch saving entities', error);
       throw error;
