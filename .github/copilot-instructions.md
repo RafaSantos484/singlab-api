@@ -2,7 +2,10 @@
 
 ## Project Overview
 
-This is a **NestJS + Firebase Cloud Functions** production template for building TypeScript REST APIs. The project combines modern NestJS architecture with serverless Firebase deployment.
+This is the **SingLab API**, a NestJS + Firebase Cloud Functions backend for a
+karaoke and singing practice web app. The API ingests audio, normalizes media,
+separates vocals from instrumental, transcribes lyrics, and stores processed
+assets with metadata.
 
 ### Key Technologies
 - **Framework**: NestJS v11+ with Express adapter
@@ -16,26 +19,26 @@ This is a **NestJS + Firebase Cloud Functions** production template for building
 ### Core Application Flow
 
 1. **Entry Point** (`src/main.ts`):
-   - Creates Express app with middleware (CORS, JSON parser, body trimmer)
-   - Initializes NestJS with cached instance for serverless optimization
-   - Exports `api` Firebase Function handler
-   - Supports local development and Firebase Functions deployment
+  - Creates Express app with middleware (CORS, JSON parser, body trimmer)
+  - Initializes NestJS with cached instance for serverless optimization
+  - Exports `api` Firebase Function handler
+  - Supports local development and Firebase Functions deployment
 
 2. **Module System** (`src/app.module.ts`):
-   - Root NestJS module with dependency injection
-   - Centralized configuration and provider management
-   - Import shared utilities, guards, interceptors here
+  - Root NestJS module with dependency injection
+  - Centralized configuration and provider management
+  - Import shared utilities, guards, interceptors here
 
 3. **Controllers** (`src/*.controller.ts`):
-   - NestJS controllers handle HTTP routes
-   - Use decorators: `@Controller()`, `@Get()`, `@Post()`, etc.
-   - Return typed objects (interfaces/classes)
+  - NestJS controllers handle HTTP routes
+  - Use decorators: `@Controller()`, `@Get()`, `@Post()`, etc.
+  - Return typed objects (interfaces/classes)
 
 4. **Configuration** (`src/config/env.config.ts`):
-   - Static `Env` class for all environment variables
-   - Type-safe getters with safe defaults
-   - Supports `.env.dev` and `.env.production` files
-   - Variables: `nodeEnv`, `skipAuth`, `corsOrigin`, `port`
+  - Static `Env` class for all environment variables
+  - Type-safe getters with safe defaults
+  - Supports `.env.dev` and `.env.production` files
+  - Variables: `nodeEnv`, `skipAuth`, `corsOrigin`, `port`
 
 ### Directory Structure
 
@@ -46,7 +49,7 @@ src/
 ├── main.ts                # Application entry & Firebase export
 ├── utils.ts               # Static utility functions
 └── config/
-    └── env.config.ts      # Environment configuration
+  └── env.config.ts      # Environment configuration
 
 test/
 ├── app.controller.spec.ts # Unit tests
@@ -317,58 +320,57 @@ Before committing, ensure:
 
 ### Adding a New Feature
 
-1. **Create Feature Module**:
+1. **Create Feature Module** (example: uploads):
    ```typescript
-   // src/features/user/user.module.ts
+   // src/features/uploads/uploads.module.ts
    import { Module } from '@nestjs/common';
-   import { UserController } from './user.controller';
-   import { UserService } from './user.service';
+   import { UploadsController } from './uploads.controller';
+   import { UploadsService } from './uploads.service';
 
    @Module({
-     controllers: [UserController],
-     providers: [UserService],
-     exports: [UserService],
+     controllers: [UploadsController],
+     providers: [UploadsService],
+     exports: [UploadsService],
    })
-   export class UserModule {}
+   export class UploadsModule {}
    ```
 
 2. **Create Controller**:
    ```typescript
-   // src/features/user/user.controller.ts
+   // src/features/uploads/uploads.controller.ts
    import { Controller, Get, Param } from '@nestjs/common';
-   import { UserService } from './user.service';
+   import { UploadsService } from './uploads.service';
 
-   @Controller('users')
-   export class UserController {
-     constructor(private readonly userService: UserService) {}
+   @Controller('uploads')
+   export class UploadsController {
+     constructor(private readonly uploadsService: UploadsService) {}
 
      @Get(':id')
-     async getUser(@Param('id') id: string) {
-       return this.userService.findById(id);
+     async getUpload(@Param('id') id: string) {
+       return this.uploadsService.findById(id);
      }
    }
    ```
 
 3. **Create Service**:
    ```typescript
-   // src/features/user/user.service.ts
+   // src/features/uploads/uploads.service.ts
    import { Injectable } from '@nestjs/common';
 
    @Injectable()
-   export class UserService {
+   export class UploadsService {
      async findById(id: string) {
-       // Business logic here
-       return { id, name: 'Example' };
+       return { id, status: 'pending' };
      }
    }
    ```
 
 4. **Register in AppModule**:
    ```typescript
-   import { UserModule } from './features/user/user.module';
+   import { UploadsModule } from './features/uploads/uploads.module';
 
    @Module({
-     imports: [UserModule],
+     imports: [UploadsModule],
    })
    export class AppModule {}
    ```

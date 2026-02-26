@@ -1,6 +1,6 @@
-# Contributing to NestJS Firebase Functions Template
+# Contributing to SingLab API
 
-Thank you for your interest in contributing! 🎉
+Thank you for your interest in contributing.
 
 ## How to Contribute
 
@@ -45,7 +45,7 @@ Use descriptive branch names with the following prefixes:
 
 #### Git Workflow
 
-This template follows a **Git Flow** approach:
+This project follows a Git Flow approach:
 
 - **`master`** - Production-ready code (auto-deploys to Firebase)
 - **`develop`** - Integration branch for features
@@ -137,4 +137,4 @@ npm test
 
 ## Questions?
 
-Feel free to open an issue for any questions or discussions!
+Feel free to open an issue for any questions or discussions.
