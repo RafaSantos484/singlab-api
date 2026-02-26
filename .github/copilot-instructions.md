@@ -251,6 +251,11 @@ git diff main... --stat
 
 **Important**: Use the branch name and commit history as context, not just current session information. This ensures the PR title/description accurately reflects what was actually implemented in the branch.
 
+### Formatting for PR Descriptions and Commit Comments
+
+When providing a PR description or commit comments, always output the response
+as a Markdown code block.
+
 ### Branch Naming Convention
 - `feat/` - New features (e.g., `feat/add-user-auth`)
 - `fix/` - Bug fixes (e.g., `fix/cors-headers`)
