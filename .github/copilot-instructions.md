@@ -231,6 +231,39 @@ git diff src/app.controller.ts
 git log -1 --name-status
 ```
 
+### Commit Strategy
+
+**Prefer smaller, atomic commits over single large commits.** Each commit should represent a single logical unit of work that can be reviewed and understood independently.
+
+**Benefits of atomic commits:**
+- Easier code review and understanding of changes
+- Simpler git history for debugging and bisecting
+- Better for reverting specific features without affecting others
+- Clearer project history and commit messages
+
+**When to split into multiple commits:**
+- Different features or fixes should be separate commits
+- Infrastructure/setup changes separate from business logic
+- Documentation updates separate from code changes
+- Test additions can be separate from implementation if large
+
+**Example strategy:** For a feature with infrastructure, implementation, tests, and docs:
+```bash
+git add src/infrastructure/...
+git commit -m "feat: add firestore provider infrastructure"
+
+git add src/features/song/...
+git commit -m "feat: implement song repository and service"
+
+git add test/...
+git commit -m "test: add integration tests for song feature"
+
+git add docs/
+git commit -m "docs: add song feature documentation"
+```
+
+This creates a clean, reviewable history instead of one monolithic commit.
+
 ### Pull Request Title & Description
 
 When asked to generate a pull request title or description, **analyze git context** to ensure accuracy:
