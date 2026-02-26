@@ -10,18 +10,18 @@ permissions:
 
 jobs:
   check-source-branch-default:
-    if: github.base_ref == github.event.repository.default_branch
+    if: github.base_ref == 'main' || github.base_ref == 'master'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Validate PR source branch for default branch
+      - name: Validate PR source branch for production branch
         run: |
           set -euo pipefail
           HEAD="${{ github.head_ref }}"
-          DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+          BASE="${{ github.base_ref }}"
           
           if [[ "$HEAD" != "develop" && ! "$HEAD" =~ ^hotfix/ ]]; then
-            echo "::error::Only PRs from 'develop' or 'hotfix/*' branches can be merged into the default branch"
+            echo "::error::Only PRs from 'develop' or 'hotfix/*' branches can be merged into $BASE"
             echo "Your branch: $HEAD"
             echo "Allowed branches:"
             echo "  - develop"
@@ -29,7 +29,7 @@ jobs:
             exit 1
           fi
           
-          echo "::notice::✓ Branch '$HEAD' is allowed to merge into $DEFAULT_BRANCH"
+          echo "::notice::✓ Branch '$HEAD' is allowed to merge into $BASE"
 
   check-source-branch-develop:
     if: github.base_ref == 'develop'
@@ -41,10 +41,9 @@ jobs:
           set -euo pipefail
           HEAD="${{ github.head_ref }}"
           
-          # Allow back-merge from the default branch or valid branch types.
-          DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
-          if [[ "$HEAD" == "$DEFAULT_BRANCH" ]]; then
-            echo "::notice::✓ Back-merge: '$DEFAULT_BRANCH' -> 'develop' allowed"
+          # Allow back-merges from production branches or valid feature branches
+          if [[ "$HEAD" == "main" || "$HEAD" == "master" ]]; then
+            echo "::notice::✓ Back-merge: '$HEAD' -> 'develop' allowed"
             exit 0
           fi
 
@@ -52,7 +51,8 @@ jobs:
             echo "::error::Invalid branch type for 'develop'"
             echo "Your branch: $HEAD"
             echo "Allowed branch types:"
-            echo "  - $DEFAULT_BRANCH (back-merge)"
+            echo "  - main (back-merge)"
+            echo "  - master (back-merge)"
             echo "  - feat/*"
             echo "  - feature/*"
             echo "  - fix/*"

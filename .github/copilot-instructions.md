@@ -272,14 +272,14 @@ When asked to generate a pull request title or description, **analyze git contex
 # Get current branch name
 git branch --show-current
 
-# View commits on this branch (not on main/master)
-git log main..HEAD --oneline
+# View commits on this branch (not on develop)
+git log develop..HEAD --oneline
 
 # View full commit details for context
-git log main..HEAD --format="%B"
+git log develop..HEAD --format="%B"
 
-# Compare changes with main/master
-git diff main... --stat
+# Compare changes with develop
+git diff develop... --stat
 ```
 
 **Important**: Use the branch name and commit history as context, not just current session information. This ensures the PR title/description accurately reflects what was actually implemented in the branch.
@@ -288,6 +288,20 @@ git diff main... --stat
 
 When providing a PR description or commit comments, always output the response
 as a Markdown code block.
+
+### Rich PR Formatting Requirement
+
+When asked to generate a PR title/description for the current branch, return a
+well-structured Markdown response (inside a code block) that uses formatting to
+enhance readability and clarity. Enrich the output using:
+- Headings and subheadings (e.g., `#`, `##`, `###`) for sections
+- Emphasis for key terms (bold, italics) and optional underline via HTML tags
+- Task lists with checkboxes for tests, verification, or follow-ups
+- Short, scannable bullet lists for changes and impacts
+- Optional callouts (blockquotes) for important notes or risks
+
+The goal is a polished, review-friendly PR description that highlights scope,
+tests, and notable changes without being verbose.
 
 ### Branch Naming Convention
 - `feat/` - New features (e.g., `feat/add-user-auth`)
