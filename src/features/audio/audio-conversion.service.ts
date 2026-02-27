@@ -91,13 +91,11 @@ export class AudioConversionService {
         const inputStream = Readable.from(fileBuffer);
 
         // Create writable stream to storage (no buffering in memory)
-        const writeStream = this.bucket
-          .file(storagePath)
-          .createWriteStream({
-            metadata: {
-              contentType: 'audio/mpeg',
-            },
-          });
+        const writeStream = this.bucket.file(storagePath).createWriteStream({
+          metadata: {
+            contentType: 'audio/mpeg',
+          },
+        });
 
         // Get FFmpeg instance (thread-safe)
         FFmpegProvider.getInstance()
@@ -116,12 +114,8 @@ export class AudioConversionService {
               .on('error', (error: Error) => {
                 clearTimeout(timeoutId);
                 writeStream.destroy();
-                this.logger.error(
-                  `FFmpeg conversion error: ${error.message}`,
-                );
-                reject(
-                  new Error(`Audio conversion failed: ${error.message}`),
-                );
+                this.logger.error(`FFmpeg conversion error: ${error.message}`);
+                reject(new Error(`Audio conversion failed: ${error.message}`));
               })
               .on('progress', (progress: { percent?: number }) => {
                 if (typeof progress?.percent === 'number') {

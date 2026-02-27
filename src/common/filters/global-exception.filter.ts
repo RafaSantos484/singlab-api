@@ -68,12 +68,11 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         message = exceptionResponse;
       }
 
-      this.logger.warn(
-        `HttpException: ${statusCode} ${message}`,
-      );
+      this.logger.warn(`HttpException: ${statusCode} ${message}`);
     } else {
       // Handle unexpected errors
-      const errorMsg = exception instanceof Error ? exception.message : 'Unknown error';
+      const errorMsg =
+        exception instanceof Error ? exception.message : 'Unknown error';
       this.logger.error(
         `Unhandled exception: ${errorMsg}`,
         exception instanceof Error ? exception.stack : '',

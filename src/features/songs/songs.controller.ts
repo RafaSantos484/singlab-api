@@ -63,7 +63,7 @@ export class SongsController {
    * @param req - Request with authenticated user
    * @param file - Uploaded file
    * @param metadataStr - JSON string with title and author
-  * @returns Song object with ID, metadata, rawSongInfo (urlInfo and uploadedAt)
+   * @returns Song object with ID, metadata, rawSongInfo (urlInfo and uploadedAt)
    * @throws BadRequestException if validation fails
    * @throws HttpException if upload/conversion fails
    */

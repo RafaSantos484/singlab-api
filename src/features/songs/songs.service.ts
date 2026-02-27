@@ -217,11 +217,11 @@ export class SongsService {
 
   /**
    * Builds storage path for the converted audio file.
-     * Uses a canonical path format for reliable cleanup and URL refresh.
+   * Uses a canonical path format for reliable cleanup and URL refresh.
    *
    * @param userId - User ID
    * @param songId - Song document ID
-     * @returns Storage path
+   * @returns Storage path
    */
   private buildStoragePath(userId: string, songId: string): string {
     return `users/${userId}/songs/${songId}/raw.mp3`;
@@ -290,7 +290,7 @@ export class SongsService {
   }
 
   /**
-  * Persists song metadata to Firestore.
+   * Persists song metadata to Firestore.
    * On failure, does NOT attempt cleanup (caller responsibility).
    *
    * @param docRef - Firestore document reference
@@ -392,13 +392,13 @@ export class SongsService {
   }
 
   /**
-  * Deletes a song and its associated storage file.
-  * Uses the canonical storage path format for cleanup.
+   * Deletes a song and its associated storage file.
+   * Uses the canonical storage path format for cleanup.
    *
    * Strategy:
-  * 1. Fetch song document to confirm it exists
-  * 2. Delete file from Cloud Storage
-  * 3. Delete Firestore document
+   * 1. Fetch song document to confirm it exists
+   * 2. Delete file from Cloud Storage
+   * 3. Delete Firestore document
    *
    * @param userId - User ID
    * @param songId - Song ID
@@ -463,8 +463,8 @@ export class SongsService {
   }
 
   /**
-  * Refreshes raw song URL if expired or near expiration.
-  * Checks urlInfo.expiresAt and generates new signed URL if needed.
+   * Refreshes raw song URL if expired or near expiration.
+   * Checks urlInfo.expiresAt and generates new signed URL if needed.
    *
    * @param userId - User ID
    * @param songId - Song ID

@@ -14,7 +14,10 @@ export interface FFmpegCommand {
     event: string,
     callback: (data?: { percent?: number } | Error) => void,
   ): FFmpegCommand;
-  pipe(stream: NodeJS.WritableStream, options?: { end: boolean }): FFmpegCommand;
+  pipe(
+    stream: NodeJS.WritableStream,
+    options?: { end: boolean },
+  ): FFmpegCommand;
 }
 
 export interface FFmpegModule {
