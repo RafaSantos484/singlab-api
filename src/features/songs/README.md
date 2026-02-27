@@ -159,10 +159,8 @@ Authorization: <Firebase Auth Token>
 {
   "success": true,
   "data": {
-    "urlInfo": {
-      "value": "https://storage.googleapis.com/...",
-      "expiresAt": "2026-03-06T10:30:00.000Z"
-    },
+    "value": "https://storage.googleapis.com/...",
+    "expiresAt": "2026-03-06T10:30:00.000Z",
     "refreshed": false
   }
 }
@@ -181,7 +179,8 @@ Authorization: <Firebase Auth Token>
 // Client checks urlInfo.expiresAt before using
 if (new Date(song.rawSongInfo.urlInfo.expiresAt) < new Date()) {
   const { data } = await fetch(`/songs/${songId}/raw/url`);
-  song.rawSongInfo.urlInfo = data.urlInfo;
+  song.rawSongInfo.urlInfo.value = data.value;
+  song.rawSongInfo.urlInfo.expiresAt = data.expiresAt;
 }
 ```
 
