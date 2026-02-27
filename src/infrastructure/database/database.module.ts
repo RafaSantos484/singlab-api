@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { FirestoreProvider } from './firestore/firestore.provider';
 import { FirestoreUnitOfWork } from './firestore/firestore-unit-of-work';
+import { FirebaseAdminProvider } from '../../auth/firebase-admin.provider';
 
 /**
  * Database module providing Firestore infrastructure.
@@ -19,7 +20,7 @@ import { FirestoreUnitOfWork } from './firestore/firestore-unit-of-work';
  * ```
  */
 @Module({
-  providers: [FirestoreProvider, FirestoreUnitOfWork],
+  providers: [FirebaseAdminProvider, FirestoreProvider, FirestoreUnitOfWork],
   exports: [FirestoreProvider, FirestoreUnitOfWork],
 })
 export class DatabaseModule {}
