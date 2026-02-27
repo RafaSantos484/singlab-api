@@ -2,6 +2,19 @@
 
 All notable changes to the SingLab API will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- URL refresh endpoint `GET /songs/:songId/raw/url` for automatic signed URL renewal
+- Automatic URL expiration detection and refresh (refreshes when <24h remaining)
+- `rawSongInfo.urlInfo.expiresAt` for client-side cache optimization
+- `refreshed` boolean in URL response indicating if new URL was generated
+
+### Changed
+- Updated `RawSongInfo` to store URL metadata in `urlInfo`
+- Improved URL management strategy with 7-day validity period
+- Updated Songs module documentation with URL refresh patterns
+
 ## [0.1.0] - 2026-02-26
 
 ### Changed
