@@ -115,10 +115,15 @@ export class AudioConversionUtil {
             reject(new Error(`Audio conversion failed: ${error.message}`));
           })
           .on('progress', (progress: { percent?: number }) => {
-            const percent = progress?.percent?.toFixed(2) ?? 'unknown';
-            AudioConversionUtil.logger.debug(
-              `Conversion progress: ${percent}%`,
-            );
+            if (
+              typeof progress?.percent === 'number' &&
+              Number.isFinite(progress.percent)
+            ) {
+              const percent = progress.percent.toFixed(2);
+              AudioConversionUtil.logger.debug(
+                `Conversion progress: ${percent}%`,
+              );
+            }
           })
           .pipe(outputStream, { end: true });
       } catch (error) {
