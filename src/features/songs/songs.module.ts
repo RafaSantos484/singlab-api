@@ -3,6 +3,7 @@ import { SongsController } from './songs.controller';
 import { SongsService } from './songs.service';
 import { DatabaseModule } from '../../infrastructure/database/database.module';
 import { FirebaseAdminProvider } from '../../auth/firebase-admin.provider';
+import { AudioModule } from '../audio/audio.module';
 
 /**
  * Songs feature module.
@@ -11,10 +12,14 @@ import { FirebaseAdminProvider } from '../../auth/firebase-admin.provider';
  *
  * Features:
  * - Song upload with audio/video file support
- * - Automatic audio format conversion to MP3
+ * - Automatic audio format conversion to MP3 (via AudioModule)
  * - Metadata validation using Zod
  * - Firestore transaction support for consistency
  * - Firebase Storage integration with signed URLs
+ *
+ * Dependencies:
+ * - AudioModule: Provides AudioConversionService for format conversion
+ * - DatabaseModule: Provides Firestore and repository access
  *
  * Configuration:
  * - File upload via multipart/form-data
@@ -29,7 +34,7 @@ import { FirebaseAdminProvider } from '../../auth/firebase-admin.provider';
  * ```
  */
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, AudioModule],
   controllers: [SongsController],
   providers: [SongsService, FirebaseAdminProvider],
   exports: [SongsService],

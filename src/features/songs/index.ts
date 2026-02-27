@@ -11,4 +11,9 @@ export {
   UploadSongResponseSchema,
 } from './dtos/upload-song.dto';
 export type { UploadSongDto, UploadSongResponse } from './dtos/upload-song.dto';
-export { AudioConversionUtil } from './utils/audio-conversion.util';
+
+/**
+ * @deprecated Use AudioConversionService from 'src/features/audio' instead.
+ * This utility will be removed in v2.0.0.
+ * See src/features/audio/README.md for migration guide.
+ */

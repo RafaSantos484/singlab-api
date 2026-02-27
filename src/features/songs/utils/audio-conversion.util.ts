@@ -1,3 +1,23 @@
+/**
+ * @deprecated This module has been replaced by AudioConversionService.
+ * Use AudioConversionService from 'src/features/audio/audio-conversion.service' instead.
+ *
+ * Migration Guide:
+ * - Remove direct imports of AudioConversionUtil
+ * - Inject AudioConversionService into your service/controller
+ * - Replace convertToMp3() calls with convertAndStreamToStorage()
+ * - Replace getFileFormat() calls with AudioConversionService.getFileFormat()
+ * - Replace isSupportedFormat() calls with AudioConversionService.isSupportedFormat()
+ *
+ * Improvements in new service:
+ * - Thread-safe FFmpeg initialization (prevents race conditions)
+ * - Direct stream-to-storage pipeline (eliminates memory accumulation)
+ * - Timeout protection (30 seconds max per conversion)
+ * - Better error handling and logging
+ *
+ * This file will be removed in version 2.0.0.
+ */
+
 import { Logger } from '@nestjs/common';
 import { PassThrough, Readable } from 'stream';
 
@@ -45,6 +65,7 @@ function getFFmpegFn(): (input: Readable) => FFmpegCommand {
 }
 
 /**
+ * @deprecated This utility has been replaced by AudioConversionService.
  * Audio conversion utility.
  * Handles conversion of various audio/video formats to MP3 (standard format).
  * Using MP3 because it's widely supported and has good compression.
