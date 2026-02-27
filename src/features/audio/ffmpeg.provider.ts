@@ -106,7 +106,6 @@ export class FFmpegProvider {
           this.logger.debug('FFmpeg path set from ffmpeg-static');
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const instance = ffmpegModule as FFmpegModule;
         this.logger.log('FFmpeg module initialized successfully');
         resolve(instance);
