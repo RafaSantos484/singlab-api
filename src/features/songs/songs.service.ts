@@ -475,7 +475,8 @@ export class SongsService {
     userId: string,
     songId: string,
   ): Promise<{
-    urlInfo: { value: string; expiresAt: string };
+    value: string;
+    expiresAt: string;
     refreshed: boolean;
   }> {
     try {
@@ -511,7 +512,7 @@ export class SongsService {
 
       if (!needsRefresh) {
         // URL still valid, return as-is
-        return { urlInfo: { value, expiresAt }, refreshed: false };
+        return { value, expiresAt, refreshed: false };
       }
 
       // Generate new signed URL
@@ -536,10 +537,8 @@ export class SongsService {
       );
 
       return {
-        urlInfo: {
-          value: newSignedUrl,
-          expiresAt: newUrlExpiresAt,
-        },
+        value: newSignedUrl,
+        expiresAt: newUrlExpiresAt,
         refreshed: true,
       };
     } catch (error) {

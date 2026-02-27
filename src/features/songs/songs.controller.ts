@@ -199,15 +199,15 @@ export class SongsController {
   }
 
   /**
-  * Retrieves a fresh URL for the raw song file.
+   * Retrieves a fresh URL for the raw song file.
    * Automatically refreshes the URL if expired or near expiration.
    *
-  * Returns URL valid for 7 days. If existing URL expires in less than
+   * Returns URL valid for 7 days. If existing URL expires in less than
    * 24 hours, generates a new one and updates Firestore.
    *
    * @param req - Request with authenticated user
    * @param songId - Song document ID
-  * @returns URL info with expiration data and refresh status
+   * @returns Object with value (URL), expiresAt (ISO 8601), and refreshed flag
    * @throws NotFoundException if song not found
    */
   @Get(':songId/raw/url')
