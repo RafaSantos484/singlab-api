@@ -29,9 +29,22 @@ Robust Firestore access layer following Domain-Driven Design (DDD) and clean arc
 
 #### 3. **Firestore Provider** (`firestore/firestore.provider.ts`)
 
-- Initializes Firebase Admin SDK
-- Provides singleton Firestore instance
+- Obtains Firestore instance from Firebase Admin SDK
+- Delegates initialization to centralized `FirebaseAdminProvider`
+- Provides singleton Firestore instance (cached after first access)
 - Health check for readiness probes
+
+#### 3.1 Firebase Initialization (Centralized)
+
+Firebase Admin SDK is initialized in a single location: `FirebaseAdminProvider`
+(`src/auth/firebase-admin.provider.ts`).
+
+**Credential priority order:**
+1. `credentials.json` in project root (if exists)
+2. Environment variables: `FIREBASE_SERVICE_ACCOUNT_JSON` or
+  `GOOGLE_APPLICATION_CREDENTIALS`
+3. Application default credentials (Firebase Functions runtime)
+
 
 #### 4. **Firestore Repository** (`firestore/firestore-repository.ts`)
 
@@ -59,8 +72,6 @@ export interface User {
   updatedAt: Date;
 }
 ```
-
-### 2. Create Mapper
 
 ```typescript
 import { BaseMapper } from '@/infrastructure';

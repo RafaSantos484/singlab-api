@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 import { credential } from 'firebase-admin';
-import { readFileSync } from 'fs';
+import { getStorage } from 'firebase-admin/storage';
+import type { Bucket } from '@google-cloud/storage';
+import { readFileSync, existsSync } from 'fs';
+import { resolve } from 'path';
+import { Env } from '../config/env.config';
 
 /**
  * Firebase Admin SDK provider.
@@ -17,35 +21,47 @@ export class FirebaseAdminProvider {
       return this.app;
     }
 
-    if (admin.apps.length > 0) {
-      this.app = admin.app();
-      return this.app;
-    }
-
-    const serviceAccount =
-      process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
-      process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    const credentialsPath = resolve('credentials.json');
 
     try {
-      if (serviceAccount) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        const credentials: admin.ServiceAccount =
-          typeof serviceAccount === 'string'
-            ? JSON.parse(readFileSync(serviceAccount, 'utf-8'))
-            : JSON.parse(serviceAccount);
+      if (existsSync(credentialsPath)) {
+        try {
+          FirebaseAdminProvider.logger.log(
+            `Initializing Firebase Admin with credentials.json`,
+          );
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          const credentials: admin.ServiceAccount = JSON.parse(
+            readFileSync(credentialsPath, 'utf-8'),
+          );
 
-        this.app = admin.initializeApp({
-          credential: credential.cert(credentials),
-        });
+          // Get bucket name from environment configuration
+          const storageBucket: string = Env.firebaseStorageBucket;
+          this.app = admin.initializeApp({
+            credential: credential.cert(credentials),
+            storageBucket,
+          });
 
-        return this.app;
+          FirebaseAdminProvider.logger.log(
+            `Firebase Admin initialized with bucket: ${storageBucket}`,
+          );
+
+          return this.app;
+        } catch (error) {
+          // If app already initialized, retrieve it (assume it's with correct credentials)
+          if (
+            (error as Error).message.includes('already') ||
+            admin.apps.length > 0
+          ) {
+            FirebaseAdminProvider.logger.log(
+              `Using existing Firebase Admin app (credentials.json)`,
+            );
+            this.app = admin.app();
+            return this.app;
+          }
+          throw error;
+        }
       }
-
-      this.app = admin.initializeApp({
-        credential: credential.applicationDefault(),
-      });
-
-      return this.app;
+      throw new Error('credentials.json not found in project root');
     } catch (error) {
       FirebaseAdminProvider.logger.error(
         'Firebase Admin initialization failed',
@@ -57,5 +73,9 @@ export class FirebaseAdminProvider {
 
   getAuth(): admin.auth.Auth {
     return admin.auth(this.getApp());
+  }
+
+  getBucket(): Bucket {
+    return getStorage(this.getApp()).bucket();
   }
 }

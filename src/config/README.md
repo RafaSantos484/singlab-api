@@ -43,6 +43,15 @@ Warning: never set this to `true` in production.
 const skipAuth = Env.skipAuth; // true or false
 ```
 
+#### `FIREBASE_STORAGE_BUCKET` (env var)
+
+Optional bucket name for Firebase Storage. If set, it overrides the automatic
+bucket resolution logic. Use the format `<project-id>.appspot.com`.
+
+```env
+FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
+```
+
 ### Usage
 
 ```typescript
