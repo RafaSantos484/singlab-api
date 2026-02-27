@@ -42,9 +42,16 @@ export class FirebaseAuthGuard implements CanActivate {
         .getAuth()
         .verifyIdToken(token);
 
+      if (!decodedToken.email_verified) {
+        throw new UnauthorizedException('Email not verified');
+      }
+
       request.user = decodedToken;
       return true;
-    } catch {
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
       throw new UnauthorizedException('Invalid or expired token');
     }
   }

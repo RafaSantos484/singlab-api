@@ -103,6 +103,22 @@ export class Env {
   }
 
   /**
+   * Email verification return URL.
+   *
+   * Used as the redirect URL when user clicks the email verification link.
+   * Format: 'https://yourdomain.com/verify-email'
+   *
+   * @returns Verification return URL
+   * @default 'http://localhost:3000/verify-email'
+   */
+  static get emailVerificationReturnUrl(): string {
+    return (
+      process.env.EMAIL_VERIFICATION_RETURN_URL?.trim() ??
+      'http://localhost:3000/verify-email'
+    );
+  }
+
+  /**
    * Converts string to boolean.
    *
    * @param value - Environment variable value
