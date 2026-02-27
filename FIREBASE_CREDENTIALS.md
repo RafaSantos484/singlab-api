@@ -65,50 +65,94 @@ Update `credentials.json.example` as a template (with placeholder values):
 
 ### Initialize Firebase Admin SDK
 
+The application uses `FirebaseAdminProvider` to centralize Firebase initialization:
+
 ```typescript
+// In src/auth/firebase-admin.provider.ts
 import * as admin from 'firebase-admin';
-import * as serviceAccount from './credentials.json';
+import { credential } from 'firebase-admin';
+import { getStorage } from 'firebase-admin/storage';
+import { Env } from '../config/env.config';
 
-// If credentials.json exists in project root
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  databaseURL: 'https://your-project.firebaseio.com'
-});
+@Injectable()
+export class FirebaseAdminProvider {
+  private app: admin.app.App | null = null;
 
-// Access Firestore
-const db = admin.firestore();
+  getApp(): admin.app.App {
+    if (this.app) return this.app;
 
-// Access authentication
-const auth = admin.auth();
+    const credentialsPath = resolve('credentials.json');
+    const credentials: admin.ServiceAccount = JSON.parse(
+      readFileSync(credentialsPath, 'utf-8')
+    );
+
+    // Get storage bucket from environment
+    const storageBucket: string = Env.firebaseStorageBucket;
+
+    this.app = admin.initializeApp({
+      credential: credential.cert(credentials),
+      storageBucket,
+    });
+
+    return this.app;
+  }
+
+  getAuth(): admin.auth.Auth {
+    return admin.auth(this.getApp());
+  }
+
+  getBucket(): Bucket {
+    return getStorage(this.getApp()).bucket();
+  }
+}
+```
+
+### Environment Configuration
+
+**Required environment variables:**
+
+```env
+# .env.dev or .env.production
+FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
+```
+
+Place `credentials.json` in the project root directory (not committed to version control).
+
+### Access Firestore and Storage
+
+```typescript
+// In services/controllers
+constructor(
+  firestoreProvider: FirestoreProvider,
+  firebaseAdminProvider: FirebaseAdminProvider,
+) {
+  this.firestore = firestoreProvider.getFirestore();
+  this.bucket = firebaseAdminProvider.getBucket();
+}
+
+// Use Firestore
+const doc = await this.firestore.collection('users').doc(userId).get();
+
+// Use Storage
+const file = this.bucket.file('path/to/file.txt');
+await file.save(buffer);
 ```
 
 ### Environment-Based Credentials
 
-For different environments (dev, staging, production), use environment variables:
-
-```typescript
-// In src/config/firebase.config.ts
-import * as admin from 'firebase-admin';
-
-export function initializeFirebase() {
-  const credentialsPath = process.env.FIREBASE_CREDENTIALS_PATH || './credentials.json';
-  const serviceAccount = require(credentialsPath);
-
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    databaseURL: process.env.FIREBASE_DATABASE_URL
-  });
-
-  return admin;
-}
-```
-
-Then add to `.env.dev`:
+For different environments (dev, staging, production), use different Firebase projects:
 
 ```env
-FIREBASE_CREDENTIALS_PATH=./credentials.json
-FIREBASE_DATABASE_URL=https://your-dev-project.firebaseio.com
+# .env.dev (local development)
+NODE_ENV=dev
+FIREBASE_STORAGE_BUCKET=dev-project.appspot.com
+
+# .env.production (production)
+NODE_ENV=production
+FIREBASE_STORAGE_BUCKET=prod-project.appspot.com
 ```
+
+Each environment should have its own `credentials.json` with the appropriate service account.
 
 ## Production Deployment
 

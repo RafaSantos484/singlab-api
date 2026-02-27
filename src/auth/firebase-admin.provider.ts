@@ -1,8 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 import { credential } from 'firebase-admin';
+import { getStorage } from 'firebase-admin/storage';
+import type { Bucket } from '@google-cloud/storage';
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
+import { Env } from '../config/env.config';
 
 /**
  * Firebase Admin SDK provider.
@@ -19,12 +22,8 @@ export class FirebaseAdminProvider {
     }
 
     const credentialsPath = resolve('credentials.json');
-    const envServiceAccount =
-      process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
-      process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
     try {
-      // Priority 1: credentials.json in root directory
       if (existsSync(credentialsPath)) {
         try {
           FirebaseAdminProvider.logger.log(
@@ -35,9 +34,16 @@ export class FirebaseAdminProvider {
             readFileSync(credentialsPath, 'utf-8'),
           );
 
+          // Get bucket name from environment configuration
+          const storageBucket: string = Env.firebaseStorageBucket;
           this.app = admin.initializeApp({
             credential: credential.cert(credentials),
+            storageBucket,
           });
+
+          FirebaseAdminProvider.logger.log(
+            `Firebase Admin initialized with bucket: ${storageBucket}`,
+          );
 
           return this.app;
         } catch (error) {
@@ -55,64 +61,7 @@ export class FirebaseAdminProvider {
           throw error;
         }
       }
-
-      // Priority 2: Environment variables
-      if (envServiceAccount) {
-        try {
-          FirebaseAdminProvider.logger.log(
-            `Initializing Firebase Admin with environment variables`,
-          );
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-          const credentials: admin.ServiceAccount =
-            typeof envServiceAccount === 'string'
-              ? JSON.parse(envServiceAccount)
-              : envServiceAccount;
-
-          this.app = admin.initializeApp({
-            credential: credential.cert(credentials),
-          });
-
-          return this.app;
-        } catch (error) {
-          // If app already initialized, retrieve it
-          if (
-            (error as Error).message.includes('already') ||
-            admin.apps.length > 0
-          ) {
-            FirebaseAdminProvider.logger.log(
-              `Using existing Firebase Admin app (environment variables)`,
-            );
-            this.app = admin.app();
-            return this.app;
-          }
-          throw error;
-        }
-      }
-
-      // Priority 3: Application default credentials (GOOGLE_APPLICATION_CREDENTIALS env)
-      try {
-        FirebaseAdminProvider.logger.log(
-          `Initializing Firebase Admin with application default credentials`,
-        );
-        this.app = admin.initializeApp({
-          credential: credential.applicationDefault(),
-        });
-
-        return this.app;
-      } catch (error) {
-        // If app already initialized, retrieve it
-        if (
-          (error as Error).message.includes('already') ||
-          admin.apps.length > 0
-        ) {
-          FirebaseAdminProvider.logger.log(
-            `Using existing Firebase Admin app (application default)`,
-          );
-          this.app = admin.app();
-          return this.app;
-        }
-        throw error;
-      }
+      throw new Error('credentials.json not found in project root');
     } catch (error) {
       FirebaseAdminProvider.logger.error(
         'Firebase Admin initialization failed',
@@ -124,5 +73,9 @@ export class FirebaseAdminProvider {
 
   getAuth(): admin.auth.Auth {
     return admin.auth(this.getApp());
+  }
+
+  getBucket(): Bucket {
+    return getStorage(this.getApp()).bucket();
   }
 }
