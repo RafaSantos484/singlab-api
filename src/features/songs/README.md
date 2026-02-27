@@ -14,8 +14,9 @@ Módulo responsável pelo upload e gerenciamento de músicas com conversão auto
 - **Firestore**: Documento com metadados em `/users/{userId}/songs/{songId}`
   - `title`: Título da música
   - `author`: Artista/Autor
-  - `rawSongUrl`: URL assinada do arquivo no Storage (válida por 7 dias)
-  - `uploadedAt`: Timestamp do upload (gerado pelo servidor)
+  - `rawSongInfo`: Objeto com informações do arquivo raw
+    - `url`: URL assinada do arquivo no Storage (válida por 7 dias)
+    - `uploadedAt`: Timestamp do upload (gerado pelo servidor)
   - `status`: Estado do processamento ('processing' → 'ready')
   - `format`: Formato final ('mp3')
 
@@ -55,8 +56,10 @@ metadata: {"title": "Song Name", "author": "Artist Name"}
     "songId": "abc123",
     "title": "Song Name",
     "author": "Artist Name",
-    "rawSongUrl": "https://storage.googleapis.com/...",
-    "uploadedAt": "2026-02-26T10:30:00.000Z"
+    "rawSongInfo": {
+      "url": "https://storage.googleapis.com/...",
+      "uploadedAt": "2026-02-26T10:30:00.000Z"
+    }
   }
 }
 ```
@@ -75,8 +78,10 @@ Authorization: <Firebase Auth Token>
     "id": "abc123",
     "title": "Song Name",
     "author": "Artist Name",
-    "rawSongUrl": "https://storage.googleapis.com/...",
-    "uploadedAt": "2026-02-26T10:30:00.000Z",
+    "rawSongInfo": {
+      "url": "https://storage.googleapis.com/...",
+      "uploadedAt": "2026-02-26T10:30:00.000Z"
+    },
     "status": "ready",
     "format": "mp3"
   }
@@ -98,8 +103,10 @@ Authorization: <Firebase Auth Token>
       "id": "abc123",
       "title": "Song Name",
       "author": "Artist Name",
-      "rawSongUrl": "https://storage.googleapis.com/...",
-      "uploadedAt": "2026-02-26T10:30:00.000Z",
+      "rawSongInfo": {
+        "url": "https://storage.googleapis.com/...",
+        "uploadedAt": "2026-02-26T10:30:00.000Z"
+      },
       "status": "ready",
       "format": "mp3"
     }
@@ -107,6 +114,26 @@ Authorization: <Firebase Auth Token>
   "total": 1
 }
 ```
+
+### 4. Deletar Música
+```http
+DELETE /songs/:songId
+Authorization: <Firebase Auth Token>
+```
+
+Deleta a música e seu arquivo associado do Cloud Storage.
+
+**Resposta (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Song deleted successfully"
+}
+```
+
+**Erros:**
+- `404 Not Found`: Música não existe
+- `500 Internal Server Error`: Erro ao deletar arquivo/documento
 
 ## Validação com Zod
 

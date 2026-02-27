@@ -149,10 +149,11 @@ The API uses a type-safe `Env` class in `src/config/env.config.ts`.
 
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
-| `PORT` | `number` | `5001` | Local server port |
-| `CORS_ORIGIN` | `string` or `array` | `*` | Allowed CORS origins |
+| `PORT` | `number` | `5001` | Local server port (dev only) |
+| `CORS_ORIGIN` | `string` or `array` | `['http://localhost:3000']` | Allowed CORS origins |
 | `SKIP_AUTH` | `boolean` | `false` | Skip authentication (dev only) |
-| `NODE_ENV` | `string` | - | Environment name |
+| `NODE_ENV` | `string` | - | Environment name (dev, production, test) |
+| `FIREBASE_STORAGE_BUCKET` | `string` | - | Firebase Cloud Storage bucket name |
 
 Example usage:
 
@@ -162,6 +163,7 @@ import { Env } from './config/env.config';
 const port = Env.port;
 const origins = Env.corsOrigin;
 const skipAuth = Env.skipAuth;
+const bucket = Env.firebaseStorageBucket;
 ```
 
 ## Firebase Service Account Credentials
