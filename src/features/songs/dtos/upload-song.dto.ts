@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 /**
- * Schema de validação para upload de música.
- * Define os campos obrigatórios e suas regras de validação.
+ * Validation schema for song upload.
+ * Defines required fields and their validation rules.
  */
 export const UploadSongSchema = z.object({
   title: z
@@ -18,8 +18,8 @@ export const UploadSongSchema = z.object({
 export type UploadSongDto = z.infer<typeof UploadSongSchema>;
 
 /**
- * Schema para resposta de upload de música.
- * Retornado após o processamento bem-sucedido.
+ * Schema for song upload response.
+ * Returned after successful processing.
  */
 export const UploadSongResponseSchema = z.object({
   songId: z.string(),
