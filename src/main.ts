@@ -9,6 +9,7 @@ import { INestApplication, Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { Env } from './config/env.config';
 import { Utils } from './utils';
+import { GlobalExceptionFilter } from './common/filters';
 import express from 'express';
 import cors from 'cors';
 import { onRequest } from 'firebase-functions/v2/https';
@@ -86,6 +87,9 @@ async function createNestApplication(): Promise<INestApplication> {
     origin: Env.corsOrigin,
     credentials: true,
   });
+
+  // Apply global exception filter for standardized error responses
+  app.useGlobalFilters(new GlobalExceptionFilter());
 
   // Initialize the application
   await app.init();

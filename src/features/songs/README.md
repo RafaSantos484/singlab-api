@@ -15,26 +15,45 @@ Módulo responsável pelo upload e gerenciamento de músicas com conversão auto
   - `title`: Título da música
   - `author`: Artista/Autor
   - `rawSongInfo`: Objeto com informações do arquivo raw
-    - `url`: URL assinada do arquivo no Storage (válida por 7 dias)
-    - `uploadedAt`: Timestamp do upload (gerado pelo servidor)
+    - `urlInfo`: Signed URL info
+      - `value`: URL assinada do arquivo no Storage (válida por 7 dias)
+      - `expiresAt`: Expiration timestamp (ISO 8601)
+    - `uploadedAt`: Timestamp do upload (ISO 8601)
   - `status`: Estado do processamento ('processing' → 'ready')
   - `format`: Formato final ('mp3')
 
 - **Firebase Storage**: Arquivo convertido em `/users/{userId}/songs/{songId}/raw.mp3`
 
+### 3. URL Refresh Automático
+- URLs assinadas expiram em **7 dias**
+- Use `GET /songs/:songId/raw/url` para obter URL sempre válida
+- Backend verifica expiração e renova automaticamente se <24h restantes
+- Cliente evita quebras de link sem lógica complexa
+
 ## Arquitetura
 
 ```
 src/features/songs/
-├── songs.module.ts              # Módulo NestJS
+├── songs.module.ts              # Módulo NestJS (imports AudioModule)
 ├── songs.controller.ts          # HTTP endpoints
 ├── songs.service.ts             # Lógica de negócio
 ├── dtos/
 │   └── upload-song.dto.ts      # Schemas Zod + tipos
 ├── utils/
-│   └── audio-conversion.util.ts # Conversão FFmpeg
+│   └── audio-conversion.util.ts # ❌ DEPRECATED - Use AudioModule instead
 └── index.ts                      # Exportações públicas
 ```
+
+### Dependências de Módulo
+
+- **AudioModule** (src/features/audio/)
+  - Fornece `AudioConversionService` para conversão de áudio
+  - Responsável por detecção de formato e conversão MP3
+  - Implementa FFmpeg com thread-safety e timeout
+
+- **DatabaseModule** (src/infrastructure/database/)
+  - Fornece acesso ao Firestore
+  - Repository pattern para persistência
 
 ## Endpoints
 
@@ -57,7 +76,10 @@ metadata: {"title": "Song Name", "author": "Artist Name"}
     "title": "Song Name",
     "author": "Artist Name",
     "rawSongInfo": {
-      "url": "https://storage.googleapis.com/...",
+      "urlInfo": {
+        "value": "https://storage.googleapis.com/...",
+        "expiresAt": "2026-03-06T10:30:00.000Z"
+      },
       "uploadedAt": "2026-02-26T10:30:00.000Z"
     }
   }
@@ -79,7 +101,10 @@ Authorization: <Firebase Auth Token>
     "title": "Song Name",
     "author": "Artist Name",
     "rawSongInfo": {
-      "url": "https://storage.googleapis.com/...",
+      "urlInfo": {
+        "value": "https://storage.googleapis.com/...",
+        "expiresAt": "2026-03-06T10:30:00.000Z"
+      },
       "uploadedAt": "2026-02-26T10:30:00.000Z"
     },
     "status": "ready",
@@ -104,7 +129,10 @@ Authorization: <Firebase Auth Token>
       "title": "Song Name",
       "author": "Artist Name",
       "rawSongInfo": {
-        "url": "https://storage.googleapis.com/...",
+        "urlInfo": {
+          "value": "https://storage.googleapis.com/...",
+          "expiresAt": "2026-03-06T10:30:00.000Z"
+        },
         "uploadedAt": "2026-02-26T10:30:00.000Z"
       },
       "status": "ready",
@@ -115,7 +143,48 @@ Authorization: <Firebase Auth Token>
 }
 ```
 
-### 4. Deletar Música
+### 4. Obter URL Atualizada do Arquivo Raw
+```http
+GET /songs/:songId/raw/url
+Authorization: <Firebase Auth Token>
+```
+
+**Comportamento:**
+- Verifica validade da URL armazenada (`urlInfo.expiresAt`)
+- Se <24h restantes ou expirada: gera nova URL (válida por 7 dias) e atualiza Firestore
+- Se >24h restantes: retorna URL atual
+
+**Resposta (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "value": "https://storage.googleapis.com/...",
+    "expiresAt": "2026-03-06T10:30:00.000Z",
+    "refreshed": false
+  }
+}
+```
+
+**Campo `refreshed`:**
+- `false`: URL existente ainda válida (cache-friendly)
+- `true`: Nova URL gerada (cliente deve invalidar cache)
+
+**Erros:**
+- `404 Not Found`: Música não existe ou não possui arquivo raw
+- `500 Internal Server Error`: Erro ao gerar URL assinada
+
+**Uso recomendado:**
+```typescript
+// Client checks urlInfo.expiresAt before using
+if (new Date(song.rawSongInfo.urlInfo.expiresAt) < new Date()) {
+  const { data } = await fetch(`/songs/${songId}/raw/url`);
+  song.rawSongInfo.urlInfo.value = data.value;
+  song.rawSongInfo.urlInfo.expiresAt = data.expiresAt;
+}
+```
+
+### 5. Deletar Música
 ```http
 DELETE /songs/:songId
 Authorization: <Firebase Auth Token>
@@ -300,13 +369,60 @@ Acesso: `http://localhost:5001`
 npm run serve
 ```
 
+## Migração de Código Legado
+
+### AudioConversionUtil (DEPRECATED)
+
+O utilitário `audio-conversion.util.ts` foi substituído por `AudioConversionService` para melhor arquitetura e performance.
+
+**Motivos da migração:**
+- ✅ Inicialização thread-safe de FFmpeg
+- ✅ Streaming direto para storage (sem acúmulo em memória)
+- ✅ Timeout protection (30 segundos)
+- ✅ Melhor tratamento de erros
+- ✅ Pattern de injeção de dependência NestJS
+
+**Como migrar seu código:**
+
+Se você ainda está usando `AudioConversionUtil`:
+
+```typescript
+// ❌ ANTES (deprecated)
+import { AudioConversionUtil } from 'src/features/songs/utils/audio-conversion.util';
+
+const result = await AudioConversionUtil.convertToMp3(buffer, format);
+```
+
+```typescript
+// ✅ DEPOIS
+import { AudioConversionService } from 'src/features/audio/audio-conversion.service';
+
+constructor(private audioConversionService: AudioConversionService) {}
+
+// Substituir convertToMp3() por convertAndStreamToStorage()
+const result = await this.audioConversionService.convertAndStreamToStorage(
+  buffer,
+  format,
+  storagePath
+);
+
+// Substituir outros métodos
+const format = this.audioConversionService.getFileFormat(mimetype, filename);
+const isSupported = this.audioConversionService.isSupportedFormat(format);
+```
+
+**Timeline:**
+- v1.x: AudioConversionUtil marcado como @deprecated
+- v2.0: Remoção completa
+
 ## Próximas Melhorias
 
+- [x] ~~Caching de URLs assinadas~~ → **Implementado refresh automático**
 - [ ] Processamento assíncrono com Cloud Tasks (para arquivos maiores)
 - [ ] Normalização de metadados (ID3 tags)
 - [ ] Detecção automática de BPM
-- [ ] Separação automática de voz/instrumental
-- [ ] Caching de URLs assinadas
+- [ ] Separação automática de voz/instrumental (stems)
+- [ ] Geração de karaoke com remoção de vocal
 - [ ] Limite de tamanho de arquivo configurável
 - [ ] Compressão de áudio adaptativa baseada em dispositivo
 - [ ] Suporte a múltiplas versões de qualidade (bitrates)
