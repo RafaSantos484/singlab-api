@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Param,
   UseInterceptors,
   UploadedFile,
@@ -60,7 +61,7 @@ export class SongsController {
    * @param req - Request with authenticated user
    * @param file - Uploaded file
    * @param metadataStr - JSON string with title and author
-   * @returns Song object with ID, metadata, and storage URL
+   * @returns Song object with ID, metadata, rawSongInfo (url and uploadedAt)
    * @throws BadRequestException if validation fails
    * @throws HttpException if upload/conversion fails
    */
@@ -190,6 +191,39 @@ export class SongsController {
       success: true,
       data: songs,
       total: songs.length,
+    };
+  }
+
+  /**
+   * Deletes a song and its associated storage file.
+   *
+   * Deletes both the Firestore document and the audio file from Cloud Storage.
+   *
+   * @param req - Request with authenticated user
+   * @param songId - Song document ID
+   * @returns Deletion confirmation
+   * @throws NotFoundException if song not found
+   * @throws HttpException if deletion fails
+   */
+  @Delete(':songId')
+  @HttpCode(HttpStatus.OK)
+  async deleteSong(
+    @Req() req: AuthenticatedRequest,
+    @Param('songId') songId: string,
+  ) {
+    if (!req.user?.uid) {
+      throw new BadRequestException('User authentication required');
+    }
+
+    this.logger.log(
+      `Delete request for song ${songId} by user ${req.user.uid}`,
+    );
+
+    const result = await this.songsService.deleteSong(req.user.uid, songId);
+
+    return {
+      success: result.success,
+      message: 'Song deleted successfully',
     };
   }
 }

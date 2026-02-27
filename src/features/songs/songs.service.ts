@@ -6,6 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import * as admin from 'firebase-admin';
+import type { Bucket, File } from '@google-cloud/storage';
 import { FirestoreProvider } from '../../infrastructure/database/firestore/firestore.provider';
 import { FirebaseAdminProvider } from '../../auth/firebase-admin.provider';
 import { UploadSongDto, UploadSongSchema } from './dtos/upload-song.dto';
@@ -20,14 +21,14 @@ import { AudioConversionUtil } from './utils/audio-conversion.util';
 export class SongsService {
   private readonly logger = new Logger(SongsService.name);
   private readonly firestore: admin.firestore.Firestore;
-  private readonly storage: admin.storage.Storage;
+  private readonly bucket: Bucket;
 
   constructor(
     firestoreProvider: FirestoreProvider,
     firebaseAdminProvider: FirebaseAdminProvider,
   ) {
     this.firestore = firestoreProvider.getFirestore();
-    this.storage = admin.storage(firebaseAdminProvider.getApp());
+    this.bucket = firebaseAdminProvider.getBucket();
   }
 
   /**
@@ -60,8 +61,10 @@ export class SongsService {
     songId: string;
     title: string;
     author: string;
-    rawSongUrl: string;
-    uploadedAt: string;
+    rawSongInfo: {
+      url: string;
+      uploadedAt: string;
+    };
   }> {
     try {
       // 1. Validate metadata using zod schema
@@ -108,8 +111,10 @@ export class SongsService {
           const songData = {
             title: validatedData.title,
             author: validatedData.author,
-            rawSongUrl: '', // Will be updated after storage upload
-            uploadedAt: admin.firestore.FieldValue.serverTimestamp(),
+            rawSongInfo: {
+              url: '',
+              uploadedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
             status: 'processing',
             format: 'mp3',
           };
@@ -118,7 +123,7 @@ export class SongsService {
 
           // 3b. Upload file to Storage
           const storagePath = `users/${userId}/songs/${songDocRef.id}/raw${mp3Extension}`;
-          const file = this.storage.bucket().file(storagePath);
+          const file: File = this.bucket.file(storagePath);
 
           try {
             await file.save(mp3Buffer, {
@@ -160,7 +165,7 @@ export class SongsService {
 
           // 3d. Update document with storage URL and set status to complete
           transaction.update(songDocRef, {
-            rawSongUrl,
+            'rawSongInfo.url': rawSongUrl,
             status: 'ready',
           });
 
@@ -168,8 +173,10 @@ export class SongsService {
             songId: songDocRef.id,
             title: validatedData.title,
             author: validatedData.author,
-            rawSongUrl,
-            uploadedAt: new Date().toISOString(),
+            rawSongInfo: {
+              url: rawSongUrl,
+              uploadedAt: new Date().toISOString(),
+            },
           };
         },
       );
@@ -261,6 +268,80 @@ export class SongsService {
       this.logger.error(`Failed to list songs for user ${userId}: ${errorMsg}`);
       throw new HttpException(
         'Failed to list songs',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * Deletes a song and its associated storage file.
+   *
+   * Performs atomic operations:
+   * 1. Validates song exists
+   * 2. Deletes file from Cloud Storage
+   * 3. Deletes Firestore document
+   *
+   * @param userId - User ID
+   * @param songId - Song ID
+   * @returns Success confirmation
+   * @throws NotFoundException if song not found
+   * @throws HttpException if deletion fails
+   */
+  async deleteSong(
+    userId: string,
+    songId: string,
+  ): Promise<{ success: boolean }> {
+    try {
+      // 1. Verify song exists
+      const songDocRef = this.firestore
+        .collection('users')
+        .doc(userId)
+        .collection('songs')
+        .doc(songId);
+
+      const docSnapshot = await songDocRef.get();
+      if (!docSnapshot.exists) {
+        this.logger.warn(
+          `Attempted to delete non-existent song ${songId} for user ${userId}`,
+        );
+        throw new HttpException('Song not found', HttpStatus.NOT_FOUND);
+      }
+
+      // 2. Delete file from Cloud Storage
+      const storagePath = `users/${userId}/songs/${songId}/raw.mp3`;
+      try {
+        await this.bucket.file(storagePath).delete();
+        this.logger.log(`Deleted file from storage: ${storagePath}`);
+      } catch (storageError) {
+        // Log but don't fail if file doesn't exist (it might have been deleted manually)
+        if (
+          storageError instanceof Error &&
+          !storageError.message.includes('not found')
+        ) {
+          this.logger.warn(
+            `Could not delete storage file ${storagePath}: ${storageError.message}`,
+          );
+        }
+      }
+
+      // 3. Delete Firestore document
+      await songDocRef.delete();
+      this.logger.log(
+        `Deleted song ${songId} for user ${userId} (document and storage file)`,
+      );
+
+      return { success: true };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Failed to delete song ${songId} for user ${userId}: ${errorMsg}`,
+      );
+      throw new HttpException(
+        'Failed to delete song',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
