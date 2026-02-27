@@ -14,6 +14,7 @@ All notable changes to the SingLab API will be documented in this file.
 - Updated `RawSongInfo` to store URL metadata in `urlInfo`
 - Improved URL management strategy with 7-day validity period
 - Updated Songs module documentation with URL refresh patterns
+- Simplified URL refresh endpoint response structure (flat `value`/`expiresAt` instead of nested `urlInfo`)
 
 ## [0.1.0] - 2026-02-26
 
