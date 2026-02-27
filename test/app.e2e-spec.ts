@@ -23,6 +23,7 @@ describe('AppController (e2e)', () => {
       getFirestore: jest.fn().mockReturnValue(mockFirestore),
     };
     const mockFirebaseAdminProvider = {
+      getAuth: jest.fn().mockReturnValue({}),
       getBucket: jest.fn().mockReturnValue({}),
     };
     const moduleFixture: TestingModule = await Test.createTestingModule({
