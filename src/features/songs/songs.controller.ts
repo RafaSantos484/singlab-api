@@ -49,6 +49,8 @@ export class SongsController {
    * - file: audio or video file (mp3, wav, ogg, webm, mp4, mov, etc.)
    * - metadata: JSON string containing title and author
    *
+   * File size limit: 100MB (enforced at interceptor level)
+   *
    * Example request:
    * ```
    * POST /songs/upload
@@ -61,13 +63,19 @@ export class SongsController {
    * @param req - Request with authenticated user
    * @param file - Uploaded file
    * @param metadataStr - JSON string with title and author
-   * @returns Song object with ID, metadata, rawSongInfo (url and uploadedAt)
+  * @returns Song object with ID, metadata, rawSongInfo (urlInfo and uploadedAt)
    * @throws BadRequestException if validation fails
    * @throws HttpException if upload/conversion fails
    */
   @Post('upload')
   @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: 100 * 1024 * 1024, // 100MB
+      },
+    }),
+  )
   async uploadSong(
     @Req() req: AuthenticatedRequest,
     @UploadedFile() file: any,
@@ -81,7 +89,7 @@ export class SongsController {
 
     // Validate file presence
     if (!file || typeof file !== 'object') {
-      this.logger.warn(`User ${req.user.uid} attempted upload without file`);
+      this.logger.debug('Upload attempt without file');
       throw new BadRequestException('File is required');
     }
 
@@ -102,9 +110,7 @@ export class SongsController {
 
     // Validate metadata presence
     if (!metadataStr) {
-      this.logger.warn(
-        `User ${req.user.uid} attempted upload without metadata`,
-      );
+      this.logger.debug('Upload attempt without metadata');
       throw new BadRequestException('Metadata JSON is required');
     }
 
@@ -114,16 +120,14 @@ export class SongsController {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       metadata = JSON.parse(metadataStr);
     } catch {
-      this.logger.warn(
-        `User ${req.user.uid} provided invalid JSON metadata: ${metadataStr}`,
-      );
+      this.logger.debug('Invalid JSON metadata provided');
       throw new BadRequestException(
         'Metadata must be valid JSON with title and author fields',
       );
     }
 
     this.logger.log(
-      `Song upload initiated for user ${req.user.uid}. File: ${uploadedFile.originalname} (${uploadedFile.size} bytes)`,
+      `Song upload initiated. File size: ${uploadedFile.size} bytes`,
     );
 
     // Process upload with audio conversion
@@ -191,6 +195,38 @@ export class SongsController {
       success: true,
       data: songs,
       total: songs.length,
+    };
+  }
+
+  /**
+  * Retrieves a fresh URL for the raw song file.
+   * Automatically refreshes the URL if expired or near expiration.
+   *
+  * Returns URL valid for 7 days. If existing URL expires in less than
+   * 24 hours, generates a new one and updates Firestore.
+   *
+   * @param req - Request with authenticated user
+   * @param songId - Song document ID
+  * @returns URL info with expiration data and refresh status
+   * @throws NotFoundException if song not found
+   */
+  @Get(':songId/raw/url')
+  async getRawSongUrl(
+    @Req() req: AuthenticatedRequest,
+    @Param('songId') songId: string,
+  ) {
+    if (!req.user?.uid) {
+      throw new BadRequestException('User authentication required');
+    }
+
+    const result = await this.songsService.refreshRawSongUrl(
+      req.user.uid,
+      songId,
+    );
+
+    return {
+      success: true,
+      data: result,
     };
   }
 
