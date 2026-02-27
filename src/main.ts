@@ -70,7 +70,7 @@ async function createNestApplication(): Promise<INestApplication> {
 
   // Define log levels based on environment
   const loggerScopes: LoggerScope[] = ['error', 'warn', 'log'];
-  if (Env.nodeEnv === 'dev') {
+  if (Env.nodeEnv === 'dev' || Env.nodeEnv === 'local') {
     loggerScopes.push('debug', 'verbose');
   }
 
@@ -100,13 +100,10 @@ async function createNestApplication(): Promise<INestApplication> {
  * Exports the API as a Firebase Function.
  * This function is automatically invoked by Firebase when an HTTP request is received.
  */
-export const api = onRequest(
-  { cors: true, region: 'southamerica-east1' },
-  async (req, res) => {
-    await createNestApplication();
-    expressApp(req, res);
-  },
-);
+export const api = onRequest({ cors: true }, async (req, res) => {
+  await createNestApplication();
+  expressApp(req, res);
+});
 
 /**
  * Starts the local development server only in dev/local environments.
