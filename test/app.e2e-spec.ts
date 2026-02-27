@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { FirebaseAdminProvider } from '../src/auth/firebase-admin.provider';
+import { FirestoreProvider } from '../src/infrastructure/database/firestore/firestore.provider';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication;
@@ -9,9 +11,28 @@ describe('AppController (e2e)', () => {
 
   beforeEach(async () => {
     process.env = { ...originalEnv, SKIP_AUTH: 'true' };
+    const mockFirestore = {
+      settings: jest.fn(),
+      collection: jest.fn().mockReturnThis(),
+      doc: jest.fn().mockReturnThis(),
+      runTransaction: jest
+        .fn()
+        .mockImplementation(async (fn: (tx: unknown) => unknown) => fn({})),
+    };
+    const mockFirestoreProvider = {
+      getFirestore: jest.fn().mockReturnValue(mockFirestore),
+    };
+    const mockFirebaseAdminProvider = {
+      getBucket: jest.fn().mockReturnValue({}),
+    };
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(FirestoreProvider)
+      .useValue(mockFirestoreProvider)
+      .overrideProvider(FirebaseAdminProvider)
+      .useValue(mockFirebaseAdminProvider)
+      .compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
@@ -19,7 +40,9 @@ describe('AppController (e2e)', () => {
 
   afterEach(async () => {
     process.env = originalEnv;
-    await app.close();
+    if (app) {
+      await app.close();
+    }
   });
 
   it('/ (GET)', () => {
