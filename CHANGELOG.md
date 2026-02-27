@@ -5,6 +5,9 @@ All notable changes to the SingLab API will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- User registration endpoint `POST /users` — creates a Firebase Auth account and a Firestore profile document atomically, with Auth rollback on Firestore failure
+- `UsersModule` with `UsersService` and `UsersController`
+- `CreateUserSchema` (Zod) validating `name` (min 3, max 255), `email` (format, max 255), and `password` (min 6, max 255, printable ASCII only)
 - URL refresh endpoint `GET /songs/:songId/raw/url` for automatic signed URL renewal
 - Automatic URL expiration detection and refresh (refreshes when <24h remaining)
 - `rawSongInfo.urlInfo.expiresAt` for client-side cache optimization
