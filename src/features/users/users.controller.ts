@@ -22,9 +22,11 @@ export class UsersController {
    * Creates a new user account.
    *
    * Accepts a JSON body with name, e-mail and password.
-   * A Firebase Auth account is created first; the profile document is then
-   * written to Firestore using the Auth UID as document ID.
-   * If the Firestore write fails the Auth account is automatically deleted.
+   * Process:
+   * 1. Creates a Firebase Auth account with the name set as displayName
+   * 2. Creates an empty user profile document in Firestore using the Auth UID
+   * 3. Sends an email verification link to the provided email address
+   * 4. If Firestore write fails, the Auth account is automatically deleted (rollback)
    *
    * Example request:
    * ```

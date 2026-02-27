@@ -16,20 +16,20 @@ import { CreateUserDto, CreateUserSchema } from './dtos/create-user.dto';
  */
 export interface CreateUserResult {
   uid: string;
-  name: string;
-  email: string;
-  createdAt: string;
 }
 
 /**
  * Service responsible for user creation.
  *
  * Creation strategy (two-phase with rollback):
- * 1. Create the user in Firebase Authentication.
- * 2. Persist the user document in Firestore using the Auth UID as document ID.
+ * 1. Create the user in Firebase Authentication with displayName set from name field.
+ * 2. Persist an empty user document in Firestore using the Auth UID as document ID.
+ * 3. Update the displayName of the Auth user.
  *
  * If step 2 fails, the Auth user is deleted to prevent orphaned accounts.
  * If step 1 fails, no cleanup is required.
+ *
+ * Note: Email verification is handled by the frontend.
  */
 @Injectable()
 export class UsersService {
@@ -56,7 +56,7 @@ export class UsersService {
    * deleted (rollback) to keep both stores consistent.
    *
    * @param body - Raw request body to validate and use for creation
-   * @returns Created user data (uid, name, email, createdAt)
+   * @returns Created user data (uid)
    * @throws BadRequestException if validation fails
    * @throws ConflictException if the e-mail is already registered
    * @throws HttpException for unexpected errors
@@ -68,12 +68,12 @@ export class UsersService {
     const uid = authUser.uid;
 
     try {
-      const createdAt = new Date().toISOString();
-      await this.createFirestoreDocument(uid, dto, createdAt);
+      await this.createFirestoreDocument(uid);
+      await this.setAuthUserDisplayName(uid, dto.name);
 
       this.logger.log(`User created successfully: ${uid}`);
 
-      return { uid, name: dto.name, email: dto.email, createdAt };
+      return { uid };
     } catch (error) {
       // Firestore write failed — roll back by deleting the Auth user.
       await this.rollbackAuthUser(uid);
@@ -146,26 +146,17 @@ export class UsersService {
   /**
    * Persists the user profile document in Firestore.
    * The document ID is the Firebase Auth UID.
+   * Document is created completely empty.
    *
    * @param uid - Firebase Auth UID
-   * @param dto - Validated user data
-   * @param createdAt - ISO timestamp of creation
    * @throws HttpException if the write fails
    */
-  private async createFirestoreDocument(
-    uid: string,
-    dto: CreateUserDto,
-    createdAt: string,
-  ): Promise<void> {
+  private async createFirestoreDocument(uid: string): Promise<void> {
     try {
       await this.firestore
         .collection(UsersService.USERS_COLLECTION)
         .doc(uid)
-        .set({
-          name: dto.name,
-          email: dto.email,
-          createdAt,
-        });
+        .set({});
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unknown Firestore error';
@@ -174,6 +165,32 @@ export class UsersService {
       );
       throw new HttpException(
         'Failed to persist user profile',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * Updates the displayName of the Firebase Auth user.
+   *
+   * @param uid - Firebase Auth UID
+   * @param displayName - Display name to set
+   * @throws HttpException if the update fails
+   */
+  private async setAuthUserDisplayName(
+    uid: string,
+    displayName: string,
+  ): Promise<void> {
+    try {
+      await this.auth.updateUser(uid, { displayName });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unknown Auth error';
+      this.logger.error(
+        `Failed to set displayName for user ${uid}: ${message}`,
+      );
+      throw new HttpException(
+        'Failed to update user profile',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
