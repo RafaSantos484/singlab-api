@@ -6,4 +6,5 @@ export {
   SeparationProviderError,
   SeparationProviderUnavailableError,
   SeparationConfigurationError,
+  SeparationTaskNotFoundError,
 } from './domain-error';

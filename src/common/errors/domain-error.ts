@@ -72,3 +72,9 @@ export class SeparationConfigurationError extends DomainError {
     );
   }
 }
+
+export class SeparationTaskNotFoundError extends DomainError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, 'SEPARATION_TASK_NOT_FOUND', HttpStatus.NOT_FOUND, details);
+  }
+}
