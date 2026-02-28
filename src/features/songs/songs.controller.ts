@@ -19,17 +19,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SongsService } from './songs.service';
 import { FirebaseAuthGuard } from '../../auth/firebase-auth.guard';
-import { Express } from 'express';
-
-/**
- * Request object extended with authenticated user info.
- * User ID comes from Firebase Authentication.
- */
-interface AuthenticatedRequest extends Express.Request {
-  user?: {
-    uid: string;
-  } | null;
-}
+import type { AuthenticatedRequest } from '../../auth/types';
 
 /**
  * Songs controller.
