@@ -7,6 +7,7 @@ import {
 import { Request } from 'express';
 import { Env } from '../config/env.config';
 import { FirebaseAdminProvider } from './firebase-admin.provider';
+import { AuthenticatedRequest } from './types';
 
 /**
  * Verifies Firebase Authentication bearer tokens for all HTTP routes.
@@ -20,7 +21,7 @@ export class FirebaseAuthGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<Request>();
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const authHeader = request.get('authorization');
 
     if (!authHeader) {

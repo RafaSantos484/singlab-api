@@ -12,5 +12,5 @@ import type { DecodedIdToken } from 'firebase-admin/auth';
  * @see {@link https://firebase.google.com/docs/auth/admin/verify-id-tokens} - Firebase ID token documentation
  */
 export interface AuthenticatedRequest extends Request {
-  user?: DecodedIdToken;
+  user: DecodedIdToken;
 }
