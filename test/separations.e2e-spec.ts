@@ -74,10 +74,6 @@ describe('Separations E2E (POST /songs/:songId/separations)', () => {
 
       const response = await request(app.getHttpServer())
         .post('/songs/song-123/separations')
-        .send({
-          modelName: 'base',
-          outputType: 'general',
-        })
         .expect(HttpStatus.ACCEPTED);
 
       expect(response.body).toEqual({
@@ -104,7 +100,7 @@ describe('Separations E2E (POST /songs/:songId/separations)', () => {
       );
     });
 
-    it('should use song title when no title provided in body', async () => {
+    it('should use song title from song document', async () => {
       jest.spyOn(songsService, 'getSongById').mockResolvedValue(mockSong);
 
       const fetchMock = jest.fn().mockResolvedValue({
@@ -120,34 +116,10 @@ describe('Separations E2E (POST /songs/:songId/separations)', () => {
 
       await request(app.getHttpServer())
         .post('/songs/song-123/separations')
-        .send({})
         .expect(HttpStatus.ACCEPTED);
 
       const callBody = JSON.parse(fetchMock.mock.calls[0][1].body);
       expect(callBody.input.title).toBe('Test Song');
-    });
-
-    it('should use custom title when provided', async () => {
-      jest.spyOn(songsService, 'getSongById').mockResolvedValue(mockSong);
-
-      const fetchMock = jest.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          id: 'task-789',
-          status: 'queued',
-        }),
-      });
-      (global as unknown as { fetch: typeof fetch }).fetch =
-        fetchMock as unknown as typeof fetch;
-
-      await request(app.getHttpServer())
-        .post('/songs/song-123/separations')
-        .send({ title: 'Custom Title' })
-        .expect(HttpStatus.ACCEPTED);
-
-      const callBody = JSON.parse(fetchMock.mock.calls[0][1].body);
-      expect(callBody.input.title).toBe('Custom Title');
     });
   });
 
@@ -157,7 +129,6 @@ describe('Separations E2E (POST /songs/:songId/separations)', () => {
 
       const response = await request(app.getHttpServer())
         .post('/songs/nonexistent-song/separations')
-        .send({})
         .expect(HttpStatus.NOT_FOUND);
 
       expect(response.body).toMatchObject({
@@ -182,7 +153,6 @@ describe('Separations E2E (POST /songs/:songId/separations)', () => {
 
       const response = await request(app.getHttpServer())
         .post('/songs/song-123/separations')
-        .send({})
         .expect(HttpStatus.CONFLICT);
 
       expect(response.body).toMatchObject({
@@ -206,7 +176,6 @@ describe('Separations E2E (POST /songs/:songId/separations)', () => {
 
       await request(app.getHttpServer())
         .post('/songs/song-123/separations')
-        .send({})
         .expect(HttpStatus.SERVICE_UNAVAILABLE);
     });
   });

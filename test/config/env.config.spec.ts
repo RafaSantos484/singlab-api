@@ -109,18 +109,6 @@ describe('Env', () => {
     });
   });
 
-  describe('separationProvider', () => {
-    it('should default to poyo when not set', () => {
-      delete process.env.SEPARATION_PROVIDER;
-      expect(Env.separationProvider).toBe('poyo');
-    });
-
-    it('should return lowercased provider value', () => {
-      process.env.SEPARATION_PROVIDER = 'PoYo';
-      expect(Env.separationProvider).toBe('poyo');
-    });
-  });
-
   describe('poyoApiKey', () => {
     it('should return configured API key', () => {
       process.env.POYO_API_KEY = 'test-key';
