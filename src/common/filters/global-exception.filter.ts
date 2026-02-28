@@ -7,6 +7,12 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Response } from 'express';
+import {
+  SeparationProviderError,
+  SeparationConflictError,
+  SeparationProviderUnavailableError,
+  SeparationConfigurationError,
+} from '../../features/separations/providers/separation-provider.errors';
 
 /**
  * Standard HTTP error response format.
@@ -23,9 +29,16 @@ interface ErrorResponse {
 /**
  * Global exception filter for standardizing error responses.
  *
- * Catches:
+ * Catches and transforms exceptions into consistent JSON format:
+ * - Separation provider errors (conflict, unavailable, configuration, generic)
  * - HttpException: NestJS HTTP exceptions with custom messages
  * - All other errors: Generic 500 Internal Server Error
+ *
+ * Separation provider error mappings:
+ * - SeparationConflictError → 409 Conflict
+ * - SeparationProviderUnavailableError → 503 Service Unavailable
+ * - SeparationConfigurationError → 500 Internal Server Error
+ * - SeparationProviderError → 400 Bad Request
  *
  * Response format:
  * ```json
@@ -49,8 +62,26 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
 
+    // Handle separation provider errors
+    if (exception instanceof SeparationConflictError) {
+      statusCode = HttpStatus.CONFLICT;
+      message = exception.message;
+      this.logger.warn(`SeparationConflictError: ${message}`);
+    } else if (exception instanceof SeparationProviderUnavailableError) {
+      statusCode = HttpStatus.SERVICE_UNAVAILABLE;
+      message = exception.message;
+      this.logger.warn(`SeparationProviderUnavailableError: ${message}`);
+    } else if (exception instanceof SeparationConfigurationError) {
+      statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+      message = exception.message;
+      this.logger.warn(`SeparationConfigurationError: ${message}`);
+    } else if (exception instanceof SeparationProviderError) {
+      statusCode = HttpStatus.BAD_REQUEST;
+      message = exception.message;
+      this.logger.warn(`SeparationProviderError: ${message}`);
+    }
     // Handle HttpException
-    if (exception instanceof HttpException) {
+    else if (exception instanceof HttpException) {
       statusCode = exception.getStatus();
       const exceptionResponse = exception.getResponse();
 
