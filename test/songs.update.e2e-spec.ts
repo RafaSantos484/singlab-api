@@ -61,7 +61,9 @@ describe('SongsController - PATCH /songs/:songId (e2e)', () => {
         title: 'New Title',
       };
 
-      jest.spyOn(songsService, 'updateSong').mockResolvedValue(expectedResponse);
+      jest
+        .spyOn(songsService, 'updateSong')
+        .mockResolvedValue(expectedResponse);
 
       return request(app.getHttpServer())
         .patch('/songs/test-song-id')
@@ -82,7 +84,9 @@ describe('SongsController - PATCH /songs/:songId (e2e)', () => {
         author: 'New Author',
       };
 
-      jest.spyOn(songsService, 'updateSong').mockResolvedValue(expectedResponse);
+      jest
+        .spyOn(songsService, 'updateSong')
+        .mockResolvedValue(expectedResponse);
 
       return request(app.getHttpServer())
         .patch('/songs/test-song-id')
@@ -107,7 +111,9 @@ describe('SongsController - PATCH /songs/:songId (e2e)', () => {
         author: 'New Author',
       };
 
-      jest.spyOn(songsService, 'updateSong').mockResolvedValue(expectedResponse);
+      jest
+        .spyOn(songsService, 'updateSong')
+        .mockResolvedValue(expectedResponse);
 
       return request(app.getHttpServer())
         .patch('/songs/test-song-id')
@@ -132,7 +138,9 @@ describe('SongsController - PATCH /songs/:songId (e2e)', () => {
         title: 'New Title',
       };
 
-      jest.spyOn(songsService, 'updateSong').mockResolvedValue(expectedResponse);
+      jest
+        .spyOn(songsService, 'updateSong')
+        .mockResolvedValue(expectedResponse);
 
       return request(app.getHttpServer())
         .patch('/songs/test-song-id')
@@ -151,9 +159,11 @@ describe('SongsController - PATCH /songs/:songId (e2e)', () => {
     it('should return 400 when title is empty string', () => {
       const updatePayload = { title: '' };
 
-      jest.spyOn(songsService, 'updateSong').mockRejectedValue(
-        new Error('Invalid update data: Title must not be empty'),
-      );
+      jest
+        .spyOn(songsService, 'updateSong')
+        .mockRejectedValue(
+          new Error('Invalid update data: Title must not be empty'),
+        );
 
       return request(app.getHttpServer())
         .patch('/songs/test-song-id')
@@ -164,11 +174,13 @@ describe('SongsController - PATCH /songs/:songId (e2e)', () => {
     it('should return 400 when title exceeds max length', () => {
       const updatePayload = { title: 'a'.repeat(256) };
 
-      jest.spyOn(songsService, 'updateSong').mockRejectedValue(
-        new Error(
-          'Invalid update data: Title must be at most 255 characters',
-        ),
-      );
+      jest
+        .spyOn(songsService, 'updateSong')
+        .mockRejectedValue(
+          new Error(
+            'Invalid update data: Title must be at most 255 characters',
+          ),
+        );
 
       return request(app.getHttpServer())
         .patch('/songs/test-song-id')
@@ -179,11 +191,13 @@ describe('SongsController - PATCH /songs/:songId (e2e)', () => {
     it('should return 400 when author exceeds max length', () => {
       const updatePayload = { author: 'a'.repeat(256) };
 
-      jest.spyOn(songsService, 'updateSong').mockRejectedValue(
-        new Error(
-          'Invalid update data: Author must be at most 255 characters',
-        ),
-      );
+      jest
+        .spyOn(songsService, 'updateSong')
+        .mockRejectedValue(
+          new Error(
+            'Invalid update data: Author must be at most 255 characters',
+          ),
+        );
 
       return request(app.getHttpServer())
         .patch('/songs/test-song-id')
@@ -194,9 +208,11 @@ describe('SongsController - PATCH /songs/:songId (e2e)', () => {
     it('should return 400 when no update fields provided', () => {
       const updatePayload = {};
 
-      jest.spyOn(songsService, 'updateSong').mockRejectedValue(
-        new Error('At least one field (title or author) must be provided'),
-      );
+      jest
+        .spyOn(songsService, 'updateSong')
+        .mockRejectedValue(
+          new Error('At least one field (title or author) must be provided'),
+        );
 
       return request(app.getHttpServer())
         .patch('/songs/test-song-id')
@@ -218,9 +234,9 @@ describe('SongsController - PATCH /songs/:songId (e2e)', () => {
     it('should return 404 when song does not exist', () => {
       const updatePayload = { title: 'New Title' };
 
-      jest.spyOn(songsService, 'updateSong').mockRejectedValue(
-        new Error('Song not found'),
-      );
+      jest
+        .spyOn(songsService, 'updateSong')
+        .mockRejectedValue(new Error('Song not found'));
 
       return request(app.getHttpServer())
         .patch('/songs/nonexistent-song-id')
@@ -233,9 +249,9 @@ describe('SongsController - PATCH /songs/:songId (e2e)', () => {
     it('should return 500 on internal server error', () => {
       const updatePayload = { title: 'New Title' };
 
-      jest.spyOn(songsService, 'updateSong').mockRejectedValue(
-        new Error('Database connection failed'),
-      );
+      jest
+        .spyOn(songsService, 'updateSong')
+        .mockRejectedValue(new Error('Database connection failed'));
 
       return request(app.getHttpServer())
         .patch('/songs/test-song-id')
@@ -252,7 +268,9 @@ describe('SongsController - PATCH /songs/:songId (e2e)', () => {
         title: 'A',
       };
 
-      jest.spyOn(songsService, 'updateSong').mockResolvedValue(expectedResponse);
+      jest
+        .spyOn(songsService, 'updateSong')
+        .mockResolvedValue(expectedResponse);
 
       return request(app.getHttpServer())
         .patch('/songs/test-song-id')
@@ -271,7 +289,9 @@ describe('SongsController - PATCH /songs/:songId (e2e)', () => {
         title: longTitle,
       };
 
-      jest.spyOn(songsService, 'updateSong').mockResolvedValue(expectedResponse);
+      jest
+        .spyOn(songsService, 'updateSong')
+        .mockResolvedValue(expectedResponse);
 
       return request(app.getHttpServer())
         .patch('/songs/test-song-id')
@@ -289,7 +309,9 @@ describe('SongsController - PATCH /songs/:songId (e2e)', () => {
         title: 'New Title',
       };
 
-      jest.spyOn(songsService, 'updateSong').mockResolvedValue(expectedResponse);
+      jest
+        .spyOn(songsService, 'updateSong')
+        .mockResolvedValue(expectedResponse);
 
       return request(app.getHttpServer())
         .patch('/songs/test-song-id')
