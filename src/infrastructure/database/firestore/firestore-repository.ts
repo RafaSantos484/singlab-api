@@ -118,7 +118,6 @@ export abstract class FirestoreRepository<
    */
   async save(entity: TEntity & { id?: TId }): Promise<TEntity> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const persistence = this.mapper.toPersistence(entity);
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       const docId = (persistence.id || this.generateId()) as TId;
@@ -127,7 +126,6 @@ export abstract class FirestoreRepository<
         .collection(this.collectionName)
         .doc(String(docId))
         .set(
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
           {
             ...persistence,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -165,10 +163,10 @@ export abstract class FirestoreRepository<
 
         for (let j = start; j < end; j++) {
           const entity = entities[j];
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
           const persistence = this.mapper.toPersistence(entity);
           // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-          const docId = (persistence.id || this.generateId()) as TId;
+          const docId = (persistence.id ?? this.generateId()) as TId;
 
           batch.set(
             this.db.collection(this.collectionName).doc(String(docId)),
@@ -178,18 +176,30 @@ export abstract class FirestoreRepository<
             },
             { merge: true },
           );
+
+          // Persist generated id back to entity reference to ensure consistency
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          (entities[j] as any).id = docId;
         }
 
         await batch.commit();
       }
 
-      // Fetch saved entities
-      const ids = entities.map((e) => {
+      const ids = entities.map((entity) => {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        return ((e as any).id || this.generateId()) as TId;
+        return (entity as any).id as TId;
       });
+
       const results = await Promise.all(ids.map((id) => this.findById(id)));
-      return results.filter((r) => r !== null) as TEntity[];
+      const persistedEntities: TEntity[] = [];
+
+      for (const result of results) {
+        if (result !== null) {
+          persistedEntities.push(result);
+        }
+      }
+
+      return persistedEntities;
     } catch (error) {
       this.logger.error('Error batch saving entities', error);
       throw error;

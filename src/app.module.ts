@@ -5,9 +5,10 @@ import { FirebaseAdminProvider } from './auth/firebase-admin.provider';
 import { DatabaseModule } from './infrastructure';
 import { SongsModule } from './features/songs/songs.module';
 import { UsersModule } from './features/users/users.module';
+import { SeparationsModule } from './features/separations/separations.module';
 
 @Module({
-  imports: [DatabaseModule, SongsModule, UsersModule],
+  imports: [DatabaseModule, SongsModule, UsersModule, SeparationsModule],
   controllers: [AppController],
   providers: [FirebaseAdminProvider, FirebaseAuthGuard],
 })

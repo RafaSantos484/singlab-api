@@ -30,6 +30,11 @@ Module responsible for song upload and management with automatic audio conversio
 - Backend checks expiration and automatically renews if <24h remaining
 - Client avoids broken links without complex logic
 
+**Invariants:**
+- Storage path is always `users/{userId}/songs/{songId}/raw.mp3` (used for cleanup and refresh logic).
+- URL refresh updates Firestore atomically; no client-provided URL is ever trusted.
+- Separation metadata (`separatedSongInfo`) is appended without mutating raw file metadata.
+
 ## Architecture
 
 ```
@@ -375,16 +380,34 @@ match /users/{userId}/songs/{allPaths=**} {
 
 ## Error Handling
 
-| Error | Code | Cause |
-|------|--------|-------|
-| `Invalid song data` | 400 | Metadata did not pass Zod validation |
-| `Unsupported file format` | 400 | File format is not supported |
-| `File is required` | 400 | No file was uploaded |
-| `Metadata JSON is required` | 400 | 'metadata' field is empty |
-| `User authentication required` | 400 | Firebase token missing or invalid |
-| `Failed to upload song` | 500 | Error during conversion, storage or Firestore |
-| `Failed to fetch song` | 500 | Error fetching document |
-| `Failed to list songs` | 500 | Error listing user songs |
+The Songs module uses a standardized error response format with error codes and request IDs for tracing:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_SONG_DATA",
+    "message": "Error message describing what went wrong",
+    "statusCode": 400,
+    "timestamp": "2026-02-28T10:30:45.123Z",
+    "requestId": "req-abc123-def456"
+  }
+}
+```
+
+**Common Errors:**
+
+| HTTP Status | Code | Cause | Notes |
+|-------------|------|-------|-------|
+| 400 | `INVALID_SONG_DATA` | Metadata validation failed | Check your JSON format, title/author fields |
+| 400 | `UNSUPPORTED_FILE_FORMAT` | File format not supported | Upload mp3, wav, ogg, webm, mp4, mov, etc. |
+| 400 | `BAD_REQUEST` | File or metadata missing | Both `file` and `metadata` fields required |
+| 401 | `UNAUTHORIZED` | No auth token | Firebase token missing or invalid |
+| 404 | `SONG_NOT_FOUND` | Song doesn't exist or doesn't belong to user | Check songId and authentication |
+| 500 | `INTERNAL_SERVER_ERROR` | Unexpected server error | Check logs for details using requestId |
+
+**Request Tracing:**
+Every error response includes a `requestId` that matches server-side logs. Use this when reporting issues to help developers debug.
 
 ## Usage Example (Client)
 

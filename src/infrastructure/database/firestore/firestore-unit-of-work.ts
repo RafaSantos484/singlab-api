@@ -87,7 +87,6 @@ export class FirestoreUnitOfWork implements IUnitOfWork {
         const boundRepos = Object.entries(repositories).reduce<
           Record<string, any>
         >((acc, [key, repo]) => {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           acc[key] = {
             ...repo,
             // If repositories have transaction support, pass it

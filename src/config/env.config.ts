@@ -103,19 +103,31 @@ export class Env {
   }
 
   /**
-   * Email verification return URL.
+   * PoYo API key for stem separation.
    *
-   * Used as the redirect URL when user clicks the email verification link.
-   * Format: 'https://yourdomain.com/verify-email'
+   * Required when using PoYo separation provider.
    *
-   * @returns Verification return URL
-   * @default 'http://localhost:3000/verify-email'
+   * @returns API key string
+   * @throws Error if not configured
    */
-  static get emailVerificationReturnUrl(): string {
-    return (
-      process.env.EMAIL_VERIFICATION_RETURN_URL?.trim() ??
-      'http://localhost:3000/verify-email'
-    );
+  static get poyoApiKey(): string {
+    const apiKey = process.env.POYO_API_KEY?.trim();
+    if (!apiKey) {
+      throw new Error(
+        'POYO_API_KEY environment variable is required for PoYo separation provider',
+      );
+    }
+    return apiKey;
+  }
+
+  /**
+   * PoYo API base URL.
+   *
+   * @returns Base URL for PoYo API
+   * @default 'https://api.poyo.ai'
+   */
+  static get poyoApiBaseUrl(): string {
+    return process.env.POYO_API_BASE_URL?.trim() ?? 'https://api.poyo.ai';
   }
 
   /**

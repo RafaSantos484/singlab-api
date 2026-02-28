@@ -95,9 +95,9 @@ export class FFmpegProvider {
   private static async initialize(): Promise<FFmpegModule> {
     return new Promise((resolve, reject) => {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const ffmpegModule = require('fluent-ffmpeg');
-        // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const ffmpegStatic = require('ffmpeg-static');
 
         if (ffmpegStatic) {

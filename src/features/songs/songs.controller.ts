@@ -19,17 +19,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SongsService } from './songs.service';
 import { FirebaseAuthGuard } from '../../auth/firebase-auth.guard';
-import { Express } from 'express';
-
-/**
- * Request object extended with authenticated user info.
- * User ID comes from Firebase Authentication.
- */
-interface AuthenticatedRequest extends Express.Request {
-  user?: {
-    uid: string;
-  } | null;
-}
+import type { AuthenticatedRequest } from '../../auth/types';
 
 /**
  * Songs controller.
@@ -82,12 +72,6 @@ export class SongsController {
     @UploadedFile() file: any,
     @Body('metadata') metadataStr: string,
   ) {
-    // Validate authentication
-    if (!req.user?.uid) {
-      this.logger.warn('Unauthorized upload attempt without user ID');
-      throw new BadRequestException('User authentication required');
-    }
-
     // Validate file presence
     if (!file || typeof file !== 'object') {
       this.logger.debug('Upload attempt without file');
@@ -118,7 +102,6 @@ export class SongsController {
     // Parse metadata JSON
     let metadata: Record<string, unknown>;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       metadata = JSON.parse(metadataStr);
     } catch {
       this.logger.debug('Invalid JSON metadata provided');
@@ -132,17 +115,16 @@ export class SongsController {
     );
 
     // Process upload with audio conversion
-    const result = await this.songsService.uploadSong(
+    const data = await this.songsService.uploadSong(
       req.user.uid,
       uploadedFile.buffer,
       uploadedFile.mimetype,
       uploadedFile.originalname,
       metadata,
     );
-
     return {
       success: true,
-      data: result,
+      data,
     };
   }
 
@@ -164,17 +146,13 @@ export class SongsController {
     }
 
     const song = await this.songsService.getSongById(req.user.uid, songId);
-
     if (!song) {
       throw new NotFoundException('Song not found');
     }
 
     return {
       success: true,
-      data: {
-        id: songId,
-        ...song,
-      },
+      data: song.toObject(),
     };
   }
 
@@ -211,29 +189,14 @@ export class SongsController {
     @Param('songId') songId: string,
     @Body() body: Record<string, unknown>,
   ) {
-    if (!req.user?.uid) {
-      throw new BadRequestException('User authentication required');
-    }
-
-    // Validate songId is provided and non-empty
-    if (!songId || typeof songId !== 'string' || songId.trim() === '') {
-      this.logger.debug('Update attempt with invalid song ID');
-      throw new BadRequestException('Valid song ID is required');
-    }
-
     this.logger.log(
       `Update request for song ${songId} by user ${req.user.uid}`,
     );
 
-    const updatedSong = await this.songsService.updateSong(
-      req.user.uid,
-      songId,
-      body,
-    );
-
+    await this.songsService.updateSongMetadata(req.user.uid, songId, body);
     return {
       success: true,
-      data: updatedSong,
+      data: null,
     };
   }
 
@@ -250,10 +213,9 @@ export class SongsController {
     }
 
     const songs = await this.songsService.listUserSongs(req.user.uid);
-
     return {
       success: true,
-      data: songs,
+      data: songs.map((song) => song.toObject()),
       total: songs.length,
     };
   }
@@ -275,10 +237,6 @@ export class SongsController {
     @Req() req: AuthenticatedRequest,
     @Param('songId') songId: string,
   ) {
-    if (!req.user?.uid) {
-      throw new BadRequestException('User authentication required');
-    }
-
     const result = await this.songsService.refreshRawSongUrl(
       req.user.uid,
       songId,
@@ -315,11 +273,10 @@ export class SongsController {
       `Delete request for song ${songId} by user ${req.user.uid}`,
     );
 
-    const result = await this.songsService.deleteSong(req.user.uid, songId);
-
+    await this.songsService.deleteSong(req.user.uid, songId);
     return {
-      success: result.success,
-      message: 'Song deleted successfully',
+      success: true,
+      data: null,
     };
   }
 }

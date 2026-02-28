@@ -289,6 +289,65 @@ src/features/your-feature/
 └── your-feature.module.ts
 ```
 
+## Error Handling Strategy
+
+The SingLab API implements a **two-tier error handling pattern** that separates domain-level failures from presentation-level concerns:
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│  Service Layer (Domain Logic)                                  │
+│                                                                 │
+│  throw new SongNotFoundError(...) ⬅️ Domain Error              │
+│  throw new SeparationConflictError(...) ⬅️ Domain Error        │
+│                                                                 │
+└────────────────────────────────┬────────────────────────────────┘
+                                 │ Bubbles up (not caught)
+                                 │
+┌────────────────────────────────▼────────────────────────────────┐
+│  Global Exception Filter (@Catch())                             │
+│                                                                 │
+│  1️⃣  Detects error type (DomainError vs HttpException)         │
+│  2️⃣  Maps to HTTP status code                                  │
+│  3️⃣  Extracts error code, message, details                     │
+│  4️⃣  Generates/extracts requestId for tracing                  │
+│  5️⃣  Logs with context (userId, method, path)                  │
+│                                                                 │
+└────────────────────────────────┬────────────────────────────────┘
+                                 │
+┌────────────────────────────────▼────────────────────────────────┐
+│  HTTP Response (Standardized Format)                            │
+│                                                                 │
+│  {                                                              │
+│    "success": false,                                            │
+│    "error": {                                                   │
+│      "code": "SONG_NOT_FOUND",      ⬅️ Error code              │
+│      "message": "Song with ID...",   ⬅️ User message            │
+│      "statusCode": 404,              ⬅️ HTTP status             │
+│      "timestamp": "2026-02-28T...",  ⬅️ ISO timestamp           │
+│      "requestId": "req-abc123"       ⬅️ Tracing ID              │
+│    }                                                            │
+│  }                                                              │
+│                                                                 │
+└────────────────────────────────────────────────────────────────┘
+```
+
+**Error Types:**
+
+| Pattern | Use Case | Example |
+|---------|----------|---------|
+| **DomainError** | Business logic failures that are expected and handled | `SongNotFoundError`, `SeparationConflictError` |
+| **HttpException** | Input validation, authentication, permission failures | `BadRequestException`, `UnauthorizedException` |
+| **Generic Error** | Unexpected runtime errors (logged as 500) | Database connection failures, stack overflows |
+
+**Key principles:**
+- Services throw **DomainErrors** for business failures (no HTTP details)
+- Controllers throw **HttpExceptions** for input validation (guard duty)
+- The filter catches everything and converts to HTTP responses
+- All errors include a unique `requestId` for tracing across logs
+- Error details are logged but not exposed to clients (security)
+
+See [src/common/README.md](src/common/README.md) for detailed error handling documentation.
+
 ---
 
 These diagrams show how all components work together harmoniously! 🎵
