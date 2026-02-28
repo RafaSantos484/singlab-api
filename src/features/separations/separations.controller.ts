@@ -1,5 +1,6 @@
 import {
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Logger,
@@ -9,6 +10,7 @@ import {
   Param,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { FirebaseAuthGuard } from '../../auth/firebase-auth.guard';
 import type { AuthenticatedRequest } from '../../auth/types';
 import { SeparationsService } from './separations.service';
@@ -52,6 +54,24 @@ export class SeparationsController {
     return {
       success: true,
       data: task || null,
+    };
+  }
+
+  @Get(':songId/separations/status')
+  async refreshSeparationStatus(
+    @Req() req: AuthenticatedRequest,
+    @Param('songId') songId: string,
+    @Query('provider') provider?: string,
+  ) {
+    const detail = await this.separationsService.refreshSeparationStatus(
+      req.user.uid,
+      songId,
+      provider,
+    );
+
+    return {
+      success: true,
+      data: detail,
     };
   }
 }

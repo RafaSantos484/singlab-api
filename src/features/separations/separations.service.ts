@@ -79,6 +79,7 @@ export class SeparationsService {
         songId,
         provider.name,
         data,
+        song, // Pass existing song to avoid redundant fetch
       );
 
       this.logger.log(
@@ -105,6 +106,77 @@ export class SeparationsService {
           userId,
         },
       );
+    }
+  }
+
+  async refreshSeparationStatus(
+    userId: string,
+    songId: string,
+    providerName?: string,
+  ): Promise<unknown> {
+    const provider = this.providerFactory.getProvider(providerName);
+
+    const song = await this.songsService.getSongById(userId, songId);
+    if (!song) {
+      throw new SongNotFoundError(`Song with ID ${songId} not found`, {
+        songId,
+        userId,
+      });
+    }
+
+    if (provider.isTaskFinished(song.separatedSongInfo?.data)) {
+      this.logger.log(
+        `Separation task for song ${songId} is already finished according to provider ${provider.name}`,
+      );
+      return song.separatedSongInfo?.data;
+    }
+
+    const taskId = provider.getTaskId(song.separatedSongInfo?.data);
+    if (!taskId) {
+      this.logger.warn(
+        `No valid task ID found for song ${songId} with provider ${provider.name}, cannot refresh status`,
+      );
+      throw new SeparationProviderError(
+        'Cannot refresh separation status due to missing task identifier',
+        {
+          provider: provider.name,
+          songId,
+          userId,
+        },
+      );
+    }
+
+    try {
+      const detail = await provider.getTaskDetail(taskId);
+      await this.songsService.updateSongSeparationInfo(
+        userId,
+        songId,
+        provider.name,
+        detail,
+        song, // Pass existing song to avoid redundant fetch
+      );
+
+      this.logger.log(
+        `Updated separation status for song ${songId} (task=${taskId})`,
+      );
+
+      return detail;
+    } catch (error) {
+      if (error instanceof DomainError || error instanceof HttpException) {
+        throw error;
+      }
+
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Failed to refresh separation status for song ${songId}: ${errorMsg}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      throw new SeparationProviderError('Failed to refresh separation status', {
+        provider: provider.name,
+        songId,
+        taskId,
+      });
     }
   }
 }
