@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Env } from '../../../config/env.config';
+import type { StemSeparationProvider } from './stem-separation-provider.interface';
 import {
-  SeparationConfigurationError,
+  DomainError,
   SeparationConflictError,
   SeparationProviderError,
   SeparationProviderUnavailableError,
-} from './separation-provider.errors';
-import type { StemSeparationProvider } from './stem-separation-provider.interface';
+} from '../../../common/errors';
 
 type PoyoTaskStatus = 'not_started' | 'running' | 'finished' | 'failed';
 
@@ -70,7 +70,9 @@ export class PoyoStemSeparationProvider implements StemSeparationProvider {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Missing PoYo API key';
-      throw new SeparationConfigurationError(message);
+      throw new Error(
+        `PoYo separation provider initialization failed: ${message}`,
+      );
     }
     this.baseUrl = Env.poyoApiBaseUrl;
   }
@@ -115,42 +117,51 @@ export class PoyoStemSeparationProvider implements StemSeparationProvider {
 
       if (!response.ok) {
         if (response.status === PoyoStemSeparationProvider.CONFLICT_STATUS) {
-          throw new SeparationConflictError('Separation already exists');
-        } else if (
+          throw new SeparationConflictError(
+            'A separation task for this song already exists with PoYo',
+            {
+              provider: this.name,
+              status: response.status,
+            },
+          );
+        }
+
+        if (
           response.status >=
           PoyoStemSeparationProvider.INTERNAL_SERVER_ERROR_STATUS
         ) {
           throw new SeparationProviderUnavailableError(
-            'PoYo service unavailable',
+            'PoYo separation provider is currently unavailable',
+            {
+              provider: this.name,
+              status: response.status,
+            },
           );
         }
-        throw new SeparationProviderError('Failed to submit separation task');
+
+        throw new SeparationProviderError('Failed to submit separation task', {
+          provider: this.name,
+          status: response.status,
+        });
       }
 
       const payload = (await response.json()) as PoyoSubmitResponse;
       payload.data.status = 'not_started';
       return payload.data;
     } catch (error) {
-      if (error instanceof SeparationProviderError) {
+      if (error instanceof DomainError) {
         throw error;
-      }
-
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        this.logger.warn(
-          `Stem separation request timed out (provider=${this.name})`,
-        );
-        throw new SeparationProviderUnavailableError(
-          'PoYo separation request timed out',
-        );
       }
 
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(
-        `Stem separation submission failed (provider=${this.name}): ${message}`,
+        `Error submitting separation task to PoYo: ${message}`,
+        error instanceof Error ? error.stack : undefined,
       );
 
       throw new SeparationProviderUnavailableError(
-        'PoYo separation provider unavailable',
+        'PoYo separation provider is currently unavailable',
+        { provider: this.name },
       );
     }
   }

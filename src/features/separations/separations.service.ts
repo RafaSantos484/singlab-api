@@ -1,19 +1,12 @@
-import {
-  BadGatewayException,
-  ConflictException,
-  Injectable,
-  InternalServerErrorException,
-  Logger,
-  NotFoundException,
-  ServiceUnavailableException,
-} from '@nestjs/common';
+import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { StemSeparationProviderFactory } from './providers/stem-separation-provider.factory';
+import { SongsService } from '../songs/songs.service';
 import {
+  DomainError,
   SeparationConflictError,
   SeparationProviderError,
-  SeparationProviderUnavailableError,
-} from './providers/separation-provider.errors';
-import { SongsService } from '../songs/songs.service';
+  SongNotFoundError,
+} from '../../common/errors';
 
 @Injectable()
 export class SeparationsService {
@@ -55,7 +48,10 @@ export class SeparationsService {
 
     const song = await this.songsService.getSongById(userId, songId);
     if (!song) {
-      throw new NotFoundException(`Song with ID ${songId} not found`);
+      throw new SongNotFoundError(`Song with ID ${songId} not found`, {
+        songId,
+        userId,
+      });
     }
 
     // Check if separation already exists
@@ -63,8 +59,13 @@ export class SeparationsService {
       this.logger.warn(
         `Separation already exists for song ${songId}, cannot create a new one`,
       );
-      throw new ConflictException(
+      throw new SeparationConflictError(
         'This song already has a separation. Delete it first before creating a new one.',
+        {
+          songId,
+          userId,
+          provider: provider.name,
+        },
       );
     }
 
@@ -86,54 +87,24 @@ export class SeparationsService {
 
       return data;
     } catch (error) {
-      this.handleProviderError(error, provider.name);
-    }
-  }
+      if (error instanceof DomainError || error instanceof HttpException) {
+        throw error;
+      }
 
-  /**
-   * Convert provider-specific errors into appropriate HTTP exceptions.
-   *
-   * Maps separation provider errors to NestJS HTTP exceptions:
-   * - SeparationConflictError → 409 Conflict
-   * - SeparationProviderUnavailableError → 503 Service Unavailable
-   * - SeparationProviderError → 502 Bad Gateway
-   * - Other errors → 500 Internal Server Error
-   *
-   * @param error - Error thrown by provider
-   * @param providerName - Name of the provider for logging
-   * @throws {ConflictException} When separation already exists
-   * @throws {ServiceUnavailableException} When provider is unavailable
-   * @throws {BadGatewayException} When provider returns an error
-   * @throws {InternalServerErrorException} For unexpected errors
-   */
-  private handleProviderError(error: unknown, providerName: string): never {
-    if (error instanceof SeparationConflictError) {
-      this.logger.warn(`Separation conflict from provider=${providerName}`);
-      throw new ConflictException(
-        'A separation for this audio already exists with the provider',
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Failed to submit separation for song ${songId} with provider ${provider.name}: ${errorMsg}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      throw new SeparationProviderError(
+        'Failed to submit separation for this song',
+        {
+          provider: provider.name,
+          songId,
+          userId,
+        },
       );
     }
-
-    if (error instanceof SeparationProviderUnavailableError) {
-      this.logger.warn(
-        `Separation provider unavailable (provider=${providerName})`,
-      );
-      throw new ServiceUnavailableException(
-        'Stem separation provider is currently unavailable. Please retry later.',
-      );
-    }
-
-    if (error instanceof SeparationProviderError) {
-      this.logger.warn(`Separation provider error (provider=${providerName})`);
-      throw new BadGatewayException(
-        'Stem separation provider returned an error while submitting the task',
-      );
-    }
-
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    this.logger.error(
-      `Unexpected separation submission failure (provider=${providerName}): ${message}`,
-    );
-    throw new InternalServerErrorException('Failed to submit separation task');
   }
 }

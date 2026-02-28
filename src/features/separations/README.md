@@ -32,10 +32,24 @@ The song must exist and belong to the authenticated user.
 The exact response format depends on the provider implementation.
 
 **Error Responses**:
-- `404 Not Found` - Song doesn't exist or doesn't belong to the user
-- `409 Conflict` - Separation already exists for this audio with the provider
-- `502 Bad Gateway` - Provider returned an error
-- `503 Service Unavailable` - Provider is temporarily unavailable
+- `404 Not Found` (`SONG_NOT_FOUND`) - Song doesn't exist or doesn't belong to the user
+- `409 Conflict` (`SEPARATION_CONFLICT`) - Separation already exists for this audio
+- `502 Bad Gateway` (`SEPARATION_PROVIDER_ERROR`) - Provider returned an error
+- `503 Service Unavailable` (`SEPARATION_PROVIDER_UNAVAILABLE`) - Provider is temporarily unavailable
+
+All error responses follow this format:
+```json
+{
+  "success": false,
+  "error": {
+    "code": "SONG_NOT_FOUND",
+    "message": "Song with ID xyz not found",
+    "statusCode": 404,
+    "timestamp": "2026-02-28T10:30:45.123Z",
+    "requestId": "abc123-def456"
+  }
+}
+```
 
 ## Configuration
 
