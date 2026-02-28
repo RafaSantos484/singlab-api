@@ -12,8 +12,11 @@ processed assets with metadata for playback and practice features.
 
 - NestJS v11 with Express adapter, optimized for Firebase Functions v2
 - Async processing pipeline for audio ingestion and AI jobs
+- **Stem separation endpoint** (`POST /songs/:songId/separations`) with pluggable provider support
+  - Currently supports PoYo AI separation service
+  - Extensible architecture for adding more providers
 - Media normalization with FFmpeg (planned)
-- Pluggable providers for stem separation and transcription (planned)
+- Transcription support (planned)
 - Centralized environment configuration via `Env` class
 - Jest unit and e2e tests, ESLint, Prettier
 
@@ -55,11 +58,20 @@ Update `.firebaserc` with your project ID:
 cp .env.dev.example .env.dev
 ```
 
+Edit `.env.dev` with required settings:
+
 ```env
 PORT=5001
 CORS_ORIGIN=*
 SKIP_AUTH=true
+FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
+
+# For stem separation (optional in dev, required in production)
+SEPARATION_PROVIDER=poyo
+POYO_API_KEY=your-poyo-api-key
 ```
+
+See [src/config/README.md](src/config/README.md) for complete configuration options.
 
 ### 4. Run the API locally
 
