@@ -1,4 +1,4 @@
-import type { SeparationProviderName } from './separation-provider.types';
+export type SeparationProviderName = 'poyo';
 
 /**
  * Interface for stem separation providers.
@@ -11,6 +11,29 @@ export interface StemSeparationProvider {
    * Provider identifier used for logging and selection.
    */
   readonly name: SeparationProviderName;
+
+  /**
+   * Check if a separation task has finished.
+   *
+   * Examines task data returned by the provider and determines if the
+   * separation has completed successfully. Used to short-circuit status
+   * polling when the task is already done.
+   *
+   * @param taskData - Provider-specific task metadata
+   * @returns true if task status indicates completion, false otherwise
+   */
+  isTaskFinished(taskData: unknown): boolean;
+
+  /**
+   * Extract task identifier from provider-specific task data.
+   *
+   * Retrieves the task ID needed for subsequent status queries.
+   * Returns undefined if the data structure is incompatible or missing ID.
+   *
+   * @param taskData - Provider-specific task metadata
+   * @returns Task identifier string, or undefined if not present
+   */
+  getTaskId(taskData: unknown): string | undefined;
 
   /**
    * Request stem separation for an audio file.
@@ -27,4 +50,12 @@ export interface StemSeparationProvider {
    * @throws {SeparationProviderUnavailableError} Provider is unavailable
    */
   requestSeparation(audioUrl: string, title: string): Promise<unknown>;
+
+  /**
+   * Fetches current separation task detail from provider.
+   *
+   * @param taskId - Provider task identifier
+   * @returns Normalized task detail including status and stems when ready
+   */
+  getTaskDetail(taskId: string): Promise<unknown>;
 }

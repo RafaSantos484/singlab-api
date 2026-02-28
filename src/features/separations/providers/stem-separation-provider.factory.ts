@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { PoyoStemSeparationProvider } from './poyo-separation.provider';
+import { PoyoStemSeparationProvider } from './poyo/poyo-separation.provider';
 import type { StemSeparationProvider } from './stem-separation-provider.interface';
-import { SeparationProviderError } from 'src/common/errors';
+import { SeparationConfigurationError } from 'src/common/errors';
 
 /**
  * Factory for resolving stem separation provider instances.
@@ -21,14 +21,13 @@ export class StemSeparationProviderFactory {
    * @throws {HttpException} Unknown provider name
    */
   getProvider(name?: string): StemSeparationProvider {
-    const provider = name || 'poyo';
-    switch (provider) {
+    switch (name) {
       case 'poyo':
         return this.poyoProvider;
       default:
-        throw new SeparationProviderError(
-          `Unknown separation provider: ${provider}`,
-          { provider },
+        throw new SeparationConfigurationError(
+          `Unknown separation provider: ${name}`,
+          { provider: name },
         );
     }
   }

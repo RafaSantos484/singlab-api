@@ -1,14 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Env } from '../../../config/env.config';
-import type { StemSeparationProvider } from './stem-separation-provider.interface';
+import { Env } from '../../../../config/env.config';
+import type { StemSeparationProvider } from '../stem-separation-provider.interface';
+import type {
+  PoyoSeparationTaskDetails,
+  PoyoSeparationStatus,
+} from './poyo-separation.types';
 import {
   DomainError,
   SeparationConflictError,
   SeparationProviderError,
   SeparationProviderUnavailableError,
-} from '../../../common/errors';
+  SeparationTaskNotFoundError,
+} from '../../../../common/errors';
 
-type PoyoTaskStatus = 'not_started' | 'running' | 'finished' | 'failed';
+type PoyoTaskStatus = PoyoSeparationStatus;
 
 /**
  * PoYo separation model options.
@@ -46,6 +51,11 @@ interface PoyoSubmitResponse {
   };
 }
 
+interface PoyoDetailResponse {
+  code: number;
+  data: PoyoSeparationTaskDetails;
+}
+
 /**
  * PoYo stem separation provider implementation.
  *
@@ -60,6 +70,9 @@ export class PoyoStemSeparationProvider implements StemSeparationProvider {
 
   private static readonly CONFLICT_STATUS = 409;
   private static readonly INTERNAL_SERVER_ERROR_STATUS = 500;
+  private static readonly DETAIL_TIMEOUT_MS = 10_000;
+  private static readonly DETAIL_ENDPOINT = '/api/generate/detail/music';
+  private static readonly SUBMIT_ENDPOINT = '/api/generate/submit';
   private readonly logger = new Logger(PoyoStemSeparationProvider.name);
   private readonly apiKey: string;
   private readonly baseUrl: string;
@@ -77,6 +90,14 @@ export class PoyoStemSeparationProvider implements StemSeparationProvider {
     this.baseUrl = Env.poyoApiBaseUrl;
   }
 
+  isTaskFinished(taskData?: PoyoSeparationTaskDetails): boolean {
+    return taskData?.status === 'finished';
+  }
+
+  getTaskId(taskData?: PoyoSeparationTaskDetails): string | undefined {
+    return taskData?.task_id;
+  }
+
   /**
    * Submit separation task to PoYo API.
    *
@@ -92,7 +113,10 @@ export class PoyoStemSeparationProvider implements StemSeparationProvider {
    * @throws {SeparationProviderError} Other HTTP error responses
    */
   async requestSeparation(audioUrl: string, title: string): Promise<unknown> {
-    const url = new URL('/api/generate/submit', this.baseUrl).toString();
+    const url = new URL(
+      PoyoStemSeparationProvider.SUBMIT_ENDPOINT,
+      this.baseUrl,
+    ).toString();
 
     const requestBody = {
       model: 'upload-and-separate-vocals',
@@ -108,10 +132,7 @@ export class PoyoStemSeparationProvider implements StemSeparationProvider {
     try {
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
-        },
+        headers: this.buildAuthHeaders(),
         body: JSON.stringify(requestBody),
       });
 
@@ -163,6 +184,127 @@ export class PoyoStemSeparationProvider implements StemSeparationProvider {
         'PoYo separation provider is currently unavailable',
         { provider: this.name },
       );
+    }
+  }
+
+  async getTaskDetail(taskId: string): Promise<PoyoSeparationTaskDetails> {
+    const url = new URL(
+      PoyoStemSeparationProvider.DETAIL_ENDPOINT,
+      this.baseUrl,
+    );
+    url.searchParams.set('task_id', taskId);
+
+    try {
+      const response = await this.fetchWithTimeout(url.toString(), {
+        method: 'GET',
+        headers: this.buildAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        if ([400, 404].includes(response.status)) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+          throw new SeparationTaskNotFoundError('Separation task not found', {
+            provider: this.name,
+            taskId,
+            status: response.status,
+          });
+        }
+
+        if (
+          response.status >=
+          PoyoStemSeparationProvider.INTERNAL_SERVER_ERROR_STATUS
+        ) {
+          throw new SeparationProviderUnavailableError(
+            'PoYo separation provider is currently unavailable',
+            {
+              provider: this.name,
+              taskId,
+              status: response.status,
+            },
+          );
+        }
+
+        throw new SeparationProviderError(
+          'Failed to fetch separation task detail',
+          {
+            provider: this.name,
+            taskId,
+            status: response.status,
+          },
+        );
+      }
+
+      const payload = (await response.json()) as PoyoDetailResponse;
+
+      if (payload.code !== 200) {
+        throw new SeparationProviderError(
+          'Failed to fetch separation task detail',
+          {
+            provider: this.name,
+            taskId,
+            providerCode: payload.code,
+          },
+        );
+      }
+
+      const detail = payload.data;
+      this.logger.log(
+        `Retrieved PoYo separation detail (task=${taskId}, status=${detail.status})`,
+      );
+
+      return detail;
+    } catch (error) {
+      if (error instanceof DomainError) {
+        throw error;
+      }
+
+      const message = error instanceof Error ? error.message : 'Unknown error';
+
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new SeparationProviderUnavailableError(
+          'PoYo separation provider timed out',
+          { provider: this.name, taskId },
+        );
+      }
+
+      this.logger.error(
+        `Error fetching separation detail from PoYo (task=${taskId}): ${message}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      throw new SeparationProviderUnavailableError(
+        'PoYo separation provider is currently unavailable',
+        { provider: this.name, taskId },
+      );
+    }
+  }
+
+  private buildAuthHeaders(includeJson = true): Record<string, string> {
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${this.apiKey}`,
+    };
+
+    if (includeJson) {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    return headers;
+  }
+
+  private async fetchWithTimeout(
+    url: string,
+    init: RequestInit,
+  ): Promise<Response> {
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      PoyoStemSeparationProvider.DETAIL_TIMEOUT_MS,
+    );
+
+    try {
+      return await fetch(url, { ...init, signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
     }
   }
 }
