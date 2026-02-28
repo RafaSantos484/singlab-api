@@ -17,12 +17,30 @@ import { UpdateSongDto, UpdateSongSchema } from './dtos/update-song.dto';
  * Interface for raw song storage metadata.
  * Stores signed URL info with expiration for client caching.
  */
+export interface RawSongUrlInfo {
+  value: string;
+  expiresAt: string;
+}
+
+/**
+ * Raw song information stored in Firestore.
+ * Contains the audio file URL and upload timestamp.
+ */
 export interface RawSongInfo {
-  urlInfo: {
-    value: string;
-    expiresAt: string;
-  };
+  urlInfo: RawSongUrlInfo;
   uploadedAt: string;
+}
+
+/**
+ * Validated song document structure.
+ *
+ * This interface represents a fully validated song with type-safe access
+ * to required fields. Ensures song data integrity before use in business logic.
+ */
+export interface Song {
+  title: string;
+  author: string;
+  rawSongInfo: RawSongInfo;
 }
 
 /**
@@ -332,10 +350,7 @@ export class SongsService {
    * @param songId - Song ID
    * @returns Song document data or null if not found
    */
-  async getSongById(
-    userId: string,
-    songId: string,
-  ): Promise<admin.firestore.DocumentData | null> {
+  async getSongById(userId: string, songId: string): Promise<Song | null> {
     try {
       const doc = await this.firestore
         .collection('users')
@@ -348,7 +363,7 @@ export class SongsService {
         return null;
       }
 
-      return doc.data() || null;
+      return this.toSong(doc.data());
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to fetch song ${songId}: ${errorMsg}`);
@@ -357,6 +372,72 @@ export class SongsService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  /**
+   * Convert Firestore document data to validated Song object.
+   *
+   * Performs runtime validation of song document structure to ensure
+   * type safety. Returns null if any required field is missing or has
+   * incorrect type.
+   *
+   * Validates:
+   * - title, author are strings
+   * - rawSongInfo exists with urlInfo and uploadedAt
+   * - urlInfo contains value and expiresAt strings
+   *
+   * @param data - Raw Firestore document data
+   * @returns Validated Song object or null if validation fails
+   */
+  private toSong(data: admin.firestore.DocumentData | undefined): Song | null {
+    if (!data) {
+      return null;
+    }
+
+    const songData = data as Record<string, unknown>;
+    const title = songData.title;
+    const author = songData.author;
+    const rawSongInfo = songData.rawSongInfo;
+
+    if (
+      typeof title !== 'string' ||
+      typeof author !== 'string' ||
+      typeof rawSongInfo !== 'object' ||
+      rawSongInfo === null
+    ) {
+      return null;
+    }
+
+    const urlInfoValue = (rawSongInfo as { urlInfo?: unknown }).urlInfo;
+    const uploadedAtValue = (rawSongInfo as { uploadedAt?: unknown })
+      .uploadedAt;
+
+    if (
+      typeof urlInfoValue !== 'object' ||
+      urlInfoValue === null ||
+      typeof uploadedAtValue !== 'string'
+    ) {
+      return null;
+    }
+
+    const value = (urlInfoValue as { value?: unknown }).value;
+    const expiresAt = (urlInfoValue as { expiresAt?: unknown }).expiresAt;
+
+    if (typeof value !== 'string' || typeof expiresAt !== 'string') {
+      return null;
+    }
+
+    return {
+      title,
+      author,
+      rawSongInfo: {
+        urlInfo: {
+          value,
+          expiresAt,
+        },
+        uploadedAt: uploadedAtValue,
+      },
+    };
   }
 
   /**
