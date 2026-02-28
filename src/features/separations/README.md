@@ -106,6 +106,7 @@ The service layer:
 1. Retrieves provider from factory
 2. Fetches song document with full validation
 3. Calls `provider.requestSeparation()` with audio URL and title
-4. Handles provider-specific errors and converts them to HTTP exceptions
+4. Persists provider task/status data directly via `song.updateSeparatedSongInfo()`
+5. Handles provider-specific errors and converts them to domain errors
 
 Add new providers by implementing `StemSeparationProvider` interface and registering in the factory.
