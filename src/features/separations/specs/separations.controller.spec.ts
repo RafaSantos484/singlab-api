@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ConflictException, HttpStatus } from '@nestjs/common';
+import {
+  INestApplication,
+  ConflictException,
+  HttpStatus,
+} from '@nestjs/common';
 import request from 'supertest';
 import { SeparationsController } from '../separations.controller';
 import { SeparationsService } from '../separations.service';

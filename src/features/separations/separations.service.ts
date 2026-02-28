@@ -114,8 +114,6 @@ export class SeparationsService {
     this.logger.error(
       `Unexpected separation submission failure (provider=${providerName}, requestId=${correlation}): ${message}`,
     );
-    throw new InternalServerErrorException(
-      'Failed to submit separation task',
-    );
+    throw new InternalServerErrorException('Failed to submit separation task');
   }
 }

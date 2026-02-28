@@ -109,7 +109,10 @@ describe('SeparationsService', () => {
 
     await service.submitSeparation(
       'song-1',
-      { modelName: SeparationModelName.Base, outputType: SeparationOutputType.General },
+      {
+        modelName: SeparationModelName.Base,
+        outputType: SeparationOutputType.General,
+      },
       { userId: 'user-1' },
     );
 

@@ -69,7 +69,8 @@ describe('Separations E2E (POST /songs/:songId/separations)', () => {
           created_at: '2026-02-28T10:00:00Z',
         }),
       });
-      (global as unknown as { fetch: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
+      (global as unknown as { fetch: typeof fetch }).fetch =
+        fetchMock as unknown as typeof fetch;
 
       const response = await request(app.getHttpServer())
         .post('/songs/song-123/separations')
@@ -114,7 +115,8 @@ describe('Separations E2E (POST /songs/:songId/separations)', () => {
           status: 'queued',
         }),
       });
-      (global as unknown as { fetch: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
+      (global as unknown as { fetch: typeof fetch }).fetch =
+        fetchMock as unknown as typeof fetch;
 
       await request(app.getHttpServer())
         .post('/songs/song-123/separations')
@@ -136,7 +138,8 @@ describe('Separations E2E (POST /songs/:songId/separations)', () => {
           status: 'queued',
         }),
       });
-      (global as unknown as { fetch: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
+      (global as unknown as { fetch: typeof fetch }).fetch =
+        fetchMock as unknown as typeof fetch;
 
       await request(app.getHttpServer())
         .post('/songs/song-123/separations')
@@ -174,7 +177,8 @@ describe('Separations E2E (POST /songs/:songId/separations)', () => {
         status: 409,
         json: async () => ({ message: 'Already exists' }),
       });
-      (global as unknown as { fetch: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
+      (global as unknown as { fetch: typeof fetch }).fetch =
+        fetchMock as unknown as typeof fetch;
 
       const response = await request(app.getHttpServer())
         .post('/songs/song-123/separations')
@@ -197,7 +201,8 @@ describe('Separations E2E (POST /songs/:songId/separations)', () => {
         status: 503,
         json: async () => ({}),
       });
-      (global as unknown as { fetch: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
+      (global as unknown as { fetch: typeof fetch }).fetch =
+        fetchMock as unknown as typeof fetch;
 
       await request(app.getHttpServer())
         .post('/songs/song-123/separations')

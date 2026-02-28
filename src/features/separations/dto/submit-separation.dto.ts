@@ -34,7 +34,10 @@ export class SubmitSeparationDto {
   outputType: SeparationOutputType = SeparationOutputType.General;
 
   @IsOptional()
-  @IsUrl({ require_protocol: true }, { message: 'callbackUrl must be a valid URL' })
+  @IsUrl(
+    { require_protocol: true },
+    { message: 'callbackUrl must be a valid URL' },
+  )
   @MaxLength(500, { message: 'callbackUrl must be at most 500 characters' })
   callbackUrl?: string;
 }

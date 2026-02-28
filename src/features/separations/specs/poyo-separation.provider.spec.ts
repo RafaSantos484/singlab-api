@@ -38,7 +38,8 @@ describe('PoyoStemSeparationProvider', () => {
         created_at: '2026-02-28T00:00:00Z',
       }),
     });
-    (global as unknown as { fetch: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
+    (global as unknown as { fetch: typeof fetch }).fetch =
+      fetchMock as unknown as typeof fetch;
 
     const provider = new PoyoStemSeparationProvider();
     const result = await provider.submitTask(
@@ -75,7 +76,8 @@ describe('PoyoStemSeparationProvider', () => {
       status: 409,
       json: async () => ({ message: 'Separation already exists' }),
     });
-    (global as unknown as { fetch: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
+    (global as unknown as { fetch: typeof fetch }).fetch =
+      fetchMock as unknown as typeof fetch;
 
     const provider = new PoyoStemSeparationProvider();
     await expect(
@@ -96,7 +98,8 @@ describe('PoyoStemSeparationProvider', () => {
       status: 503,
       json: async () => ({ message: 'Service unavailable' }),
     });
-    (global as unknown as { fetch: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
+    (global as unknown as { fetch: typeof fetch }).fetch =
+      fetchMock as unknown as typeof fetch;
 
     const provider = new PoyoStemSeparationProvider();
     await expect(
@@ -117,7 +120,8 @@ describe('PoyoStemSeparationProvider', () => {
       status: 400,
       json: async () => ({ message: 'Bad request' }),
     });
-    (global as unknown as { fetch: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
+    (global as unknown as { fetch: typeof fetch }).fetch =
+      fetchMock as unknown as typeof fetch;
 
     const provider = new PoyoStemSeparationProvider();
     await expect(
@@ -143,7 +147,8 @@ describe('PoyoStemSeparationProvider', () => {
     const abortError = new Error('Aborted');
     abortError.name = 'AbortError';
     const fetchMock = jest.fn().mockRejectedValue(abortError);
-    (global as unknown as { fetch: typeof fetch }).fetch = fetchMock as unknown as typeof fetch;
+    (global as unknown as { fetch: typeof fetch }).fetch =
+      fetchMock as unknown as typeof fetch;
 
     const provider = new PoyoStemSeparationProvider();
     await expect(

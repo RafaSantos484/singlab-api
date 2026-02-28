@@ -23,8 +23,8 @@ describe('StemSeparationProviderFactory', () => {
 
   it('should throw when provider unsupported', () => {
     process.env = { ...originalEnv, SEPARATION_PROVIDER: 'unknown' };
-    expect(
-      () => new StemSeparationProviderFactory(poyoProvider),
-    ).toThrow(SeparationConfigurationError);
+    expect(() => new StemSeparationProviderFactory(poyoProvider)).toThrow(
+      SeparationConfigurationError,
+    );
   });
 });

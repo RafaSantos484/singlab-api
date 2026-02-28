@@ -7,9 +7,7 @@ import type { SeparationProviderName } from './separation-provider.types';
 
 @Injectable()
 export class StemSeparationProviderFactory {
-  constructor(
-    private readonly poyoProvider: PoyoStemSeparationProvider,
-  ) {
+  constructor(private readonly poyoProvider: PoyoStemSeparationProvider) {
     this.validateSelectedProvider();
   }
 

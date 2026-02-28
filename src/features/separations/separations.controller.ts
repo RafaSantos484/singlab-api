@@ -53,14 +53,10 @@ export class SeparationsController {
       ? requestIdHeader[0]
       : requestIdHeader;
 
-    const task = await this.separationsService.submitSeparation(
-      songId,
-      body,
-      {
-        userId: req.user?.uid,
-        requestId,
-      },
-    );
+    const task = await this.separationsService.submitSeparation(songId, body, {
+      userId: req.user?.uid,
+      requestId,
+    });
 
     return {
       success: true,
