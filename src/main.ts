@@ -5,7 +5,7 @@
 
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
-import { INestApplication, Logger } from '@nestjs/common';
+import { INestApplication, Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { Env } from './config/env.config';
 import { Utils } from './utils';
@@ -90,6 +90,22 @@ async function createNestApplication(): Promise<INestApplication> {
 
   // Apply global exception filter for standardized error responses
   app.useGlobalFilters(new GlobalExceptionFilter());
+
+  // Global request validation pipeline
+  // Validates and transforms incoming payloads against DTOs:
+  // - whitelist: Strip unknown properties (security)
+  // - transform: Auto-convert primitive types (string '123' → number 123)
+  // - forbidUnknownValues: Allow unmapped extra fields (for middleware extensibility)
+  // - implicitConversion: Enable type coercion for query/param strings
+  // This ensures all controller inputs are validated before reaching business logic
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidUnknownValues: false,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
 
   // Initialize the application
   await app.init();

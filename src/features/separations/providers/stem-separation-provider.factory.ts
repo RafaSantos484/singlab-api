@@ -21,13 +21,15 @@ export class StemSeparationProviderFactory {
    * @throws {HttpException} Unknown provider name
    */
   getProvider(name?: string): StemSeparationProvider {
-    switch (name) {
+    const resolvedName = name ?? 'poyo';
+
+    switch (resolvedName) {
       case 'poyo':
         return this.poyoProvider;
       default:
         throw new SeparationConfigurationError(
-          `Unknown separation provider: ${name}`,
-          { provider: name },
+          `Unknown separation provider: ${resolvedName}`,
+          { provider: resolvedName },
         );
     }
   }

@@ -30,6 +30,11 @@ Module responsible for song upload and management with automatic audio conversio
 - Backend checks expiration and automatically renews if <24h remaining
 - Client avoids broken links without complex logic
 
+**Invariants:**
+- Storage path is always `users/{userId}/songs/{songId}/raw.mp3` (used for cleanup and refresh logic).
+- URL refresh updates Firestore atomically; no client-provided URL is ever trusted.
+- Separation metadata (`separatedSongInfo`) is appended without mutating raw file metadata.
+
 ## Architecture
 
 ```

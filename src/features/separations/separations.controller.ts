@@ -14,6 +14,10 @@ import type { Response } from 'express';
 import { FirebaseAuthGuard } from '../../auth/firebase-auth.guard';
 import type { AuthenticatedRequest } from '../../auth/types';
 import { SeparationsService } from './separations.service';
+import {
+  SeparationProviderQueryDto,
+  SeparationSongParamsDto,
+} from './dtos/separation-requests.dto';
 
 @Controller('songs')
 @UseGuards(FirebaseAuthGuard)
@@ -42,13 +46,13 @@ export class SeparationsController {
   @HttpCode(HttpStatus.ACCEPTED)
   async submitSeparation(
     @Req() req: AuthenticatedRequest,
-    @Param('songId') songId: string,
-    @Query('provider') provider?: string,
+    @Param() params: SeparationSongParamsDto,
+    @Query() query: SeparationProviderQueryDto,
   ) {
     const task = await this.separationsService.submitSeparation(
       req.user.uid,
-      songId,
-      provider,
+      params.songId,
+      query.provider,
     );
 
     return {
@@ -60,13 +64,13 @@ export class SeparationsController {
   @Get(':songId/separations/status')
   async refreshSeparationStatus(
     @Req() req: AuthenticatedRequest,
-    @Param('songId') songId: string,
-    @Query('provider') provider?: string,
+    @Param() params: SeparationSongParamsDto,
+    @Query() query: SeparationProviderQueryDto,
   ) {
     const detail = await this.separationsService.refreshSeparationStatus(
       req.user.uid,
-      songId,
-      provider,
+      params.songId,
+      query.provider,
     );
 
     return {

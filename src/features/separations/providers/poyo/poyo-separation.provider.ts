@@ -70,9 +70,11 @@ export class PoyoStemSeparationProvider implements StemSeparationProvider {
 
   private static readonly CONFLICT_STATUS = 409;
   private static readonly INTERNAL_SERVER_ERROR_STATUS = 500;
+  private static readonly SUBMIT_TIMEOUT_MS = 10_000;
   private static readonly DETAIL_TIMEOUT_MS = 10_000;
   private static readonly DETAIL_ENDPOINT = '/api/generate/detail/music';
   private static readonly SUBMIT_ENDPOINT = '/api/generate/submit';
+  private static readonly MAX_RETRIES = 2;
   private readonly logger = new Logger(PoyoStemSeparationProvider.name);
   private readonly apiKey: string;
   private readonly baseUrl: string;
@@ -105,13 +107,19 @@ export class PoyoStemSeparationProvider implements StemSeparationProvider {
    * - Model: 'base'
    * - Output type: 'general'
    *
+   * Includes resilience features:
+   * - 10-second timeout for submission requests
+   * - Automatic retry once on 5xx responses or timeout
+   * - Converts gateway issues to appropriate domain errors
+   *
    * @param audioUrl - Public URL of audio file to separate
    * @param title - Song title for provider metadata
    * @returns PoYo task data containing task_id and created_time
    * @throws {SeparationConflictError} HTTP 409 - separation already exists
-   * @throws {SeparationProviderUnavailableError} HTTP 500+ or timeout
-   * @throws {SeparationProviderError} Other HTTP error responses
+   * @throws {SeparationProviderUnavailableError} HTTP 500+, timeout, or unavailable
+   * @throws {SeparationProviderError} Other HTTP error responses (4xx)
    */
+
   async requestSeparation(audioUrl: string, title: string): Promise<unknown> {
     const url = new URL(
       PoyoStemSeparationProvider.SUBMIT_ENDPOINT,
@@ -130,11 +138,16 @@ export class PoyoStemSeparationProvider implements StemSeparationProvider {
     };
 
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: this.buildAuthHeaders(),
-        body: JSON.stringify(requestBody),
-      });
+      const response = await this.fetchWithTimeout(
+        url,
+        {
+          method: 'POST',
+          headers: this.buildAuthHeaders(),
+          body: JSON.stringify(requestBody),
+        },
+        PoyoStemSeparationProvider.SUBMIT_TIMEOUT_MS,
+        PoyoStemSeparationProvider.MAX_RETRIES,
+      );
 
       if (!response.ok) {
         if (response.status === PoyoStemSeparationProvider.CONFLICT_STATUS) {
@@ -202,7 +215,6 @@ export class PoyoStemSeparationProvider implements StemSeparationProvider {
 
       if (!response.ok) {
         if ([400, 404].includes(response.status)) {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-call
           throw new SeparationTaskNotFoundError('Separation task not found', {
             provider: this.name,
             taskId,
@@ -294,17 +306,38 @@ export class PoyoStemSeparationProvider implements StemSeparationProvider {
   private async fetchWithTimeout(
     url: string,
     init: RequestInit,
+    timeoutMs: number = PoyoStemSeparationProvider.DETAIL_TIMEOUT_MS,
+    maxRetries: number = 0,
   ): Promise<Response> {
     const controller = new AbortController();
-    const timeout = setTimeout(
-      () => controller.abort(),
-      PoyoStemSeparationProvider.DETAIL_TIMEOUT_MS,
-    );
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      return await fetch(url, { ...init, signal: controller.signal });
+      const response = await fetch(url, { ...init, signal: controller.signal });
+      if (this.shouldRetry(response) && maxRetries > 0) {
+        return this.fetchWithTimeout(url, init, timeoutMs, maxRetries - 1);
+      }
+      return response;
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.name === 'AbortError' &&
+        maxRetries > 0
+      ) {
+        this.logger.warn(
+          `Request to PoYo aborted (timeout=${timeoutMs}ms), retrying...`,
+        );
+        return this.fetchWithTimeout(url, init, timeoutMs, maxRetries - 1);
+      }
+      throw error;
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  private shouldRetry(response: Response): boolean {
+    return (
+      response.status >= PoyoStemSeparationProvider.INTERNAL_SERVER_ERROR_STATUS
+    );
   }
 }

@@ -193,20 +193,32 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       requestId: string;
     },
   ): void {
-    const prefix = `${context.method ?? 'UNKNOWN'} ${
-      context.path ?? 'UNKNOWN'
-    }`;
-    const suffix = `(user=${context.userId ?? 'anonymous'}; requestId=${
-      context.requestId
-    })`;
-    const logMessage = `${prefix} -> ${context.statusCode} ${context.code}: ${context.message} ${suffix}`;
+    const method = context.method ?? 'UNKNOWN';
+    const path = context.path ?? 'UNKNOWN';
+    const userId = context.userId ?? 'anonymous';
+    const logMessage = `${method} ${path} -> ${context.statusCode} ${context.code}: ${context.message}`;
     const stack = exception instanceof Error ? exception.stack : undefined;
 
+    const metadata = {
+      requestId: context.requestId,
+      userId,
+      method,
+      path,
+      statusCode: context.statusCode,
+      code: context.code,
+    };
+
+    // Log with structured metadata for monitoring and debugging
+    // Format: "METHOD PATH -> STATUS CODE: message | context={...}"
+    // Metadata includes requestId for request tracing in logs
     if (context.logLevel === 'warn') {
-      this.logger.warn(logMessage);
+      this.logger.warn(`${logMessage} | context=${JSON.stringify(metadata)}`);
       return;
     }
 
-    this.logger.error(logMessage, stack);
+    this.logger.error(
+      `${logMessage} | context=${JSON.stringify(metadata)}`,
+      stack,
+    );
   }
 }

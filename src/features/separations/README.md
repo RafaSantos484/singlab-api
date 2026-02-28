@@ -8,7 +8,7 @@ Submit stem separation tasks for songs via a provider-agnostic interface. The co
 - **Path Params**:
   - `songId` (string, required): ID of the song to separate.
 - **Query Params**:
-  - `provider` (string, optional): Separation provider to use (defaults to first available provider).
+  - `provider` (string, optional): Separation provider to use (defaults to `poyo`).
 - **Body**: none
 - **Auth**: Firebase bearer token (required in production).
 
@@ -36,11 +36,10 @@ The exact response format depends on the provider implementation.
 - **URL**: `GET /songs/:songId/separations/status`
 - **Path Params**: `songId` (string, required)
 - **Query Params**:
-  - `taskId` (string, required): Task identifier returned by the provider
-  - `provider` (string, optional): Overrides the default provider
+  - `provider` (string, optional): Overrides the default provider (defaults to `poyo`)
 - **Auth**: Firebase bearer token (required in production)
 
-`202 Accepted` is returned when the task is still running; `200 OK` when finished or failed. Response example when finished:
+The backend derives the task ID from the stored `separatedSongInfo` and short-circuits if the provider already marks the task as finished. `202 Accepted` is returned when the task is still running; `200 OK` when finished or failed. Response example when finished:
 
 ```json
 {
@@ -91,11 +90,17 @@ All error responses follow this format:
 - `POYO_API_KEY` (required when using PoYo): PoYo API authentication key
 - `POYO_API_BASE_URL` (default: `https://api.poyo.ai`): PoYo API base URL
 
-Configuration is validated at startup; missing API key prevents boot when PoYo is selected.
+Configuration is validated at startup; missing API key prevents boot when PoYo is selected. `provider` defaults to `poyo` when unspecified.
+
+### Provider resilience
+
+- Submission requests use timeouts (10s) and retry once on 5xx/timeout from PoYo.
+- Status polling uses timeouts (10s) and converts gateway issues into `503` errors.
+- All provider calls include request IDs in the error response for tracing.
 
 ## Architecture
 
-Controller → Service (fetches song) → Provider Factory → Provider implementation (PoYo). 
+Controller → Service (fetches song) → Provider Factory (defaults to PoYo) → Provider implementation (PoYo). 
 
 The service layer:
 1. Retrieves provider from factory

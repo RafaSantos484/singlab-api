@@ -1,3 +1,16 @@
+/**
+ * PoYo API type definitions and response structures.
+ *
+ * These types mirror the PoYo AI separation service API responses:
+ * https://api.poyo.ai/docs
+ *
+ * The type hierarchy uses discriminated unions based on `status` field:
+ * - not_started: Task queued, not yet processing
+ * - running: Actively separating stems, includes progress (0-100)
+ * - finished: Completed successfully, includes stem URLs
+ * - failed: Failed with error message
+ */
+
 export type PoyoSeparationStatus =
   | 'not_started'
   | 'running'
