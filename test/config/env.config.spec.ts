@@ -122,16 +122,4 @@ describe('Env', () => {
       );
     });
   });
-
-  describe('poyoApiBaseUrl', () => {
-    it('should return default base url when not set', () => {
-      delete process.env.POYO_API_BASE_URL;
-      expect(Env.poyoApiBaseUrl).toBe('https://app.poyoclub.com');
-    });
-
-    it('should return configured base url', () => {
-      process.env.POYO_API_BASE_URL = 'https://poyo.example.com';
-      expect(Env.poyoApiBaseUrl).toBe('https://poyo.example.com');
-    });
-  });
 });

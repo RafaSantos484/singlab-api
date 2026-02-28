@@ -8,7 +8,7 @@ import {
 } from './separation-provider.errors';
 import type { StemSeparationProvider } from './stem-separation-provider.interface';
 
-// type PoyoTaskStatus = 'not_started' | 'running' | 'finished' | 'failed';
+type PoyoTaskStatus = 'not_started' | 'running' | 'finished' | 'failed';
 
 /**
  * PoYo separation model options.
@@ -41,7 +41,7 @@ interface PoyoSubmitResponse {
   code: 200;
   data: {
     task_id: string;
-    // status: StemSeparationStatus;
+    status: PoyoTaskStatus;
     created_time: string;
   };
 }
@@ -128,6 +128,7 @@ export class PoyoStemSeparationProvider implements StemSeparationProvider {
       }
 
       const payload = (await response.json()) as PoyoSubmitResponse;
+      payload.data.status = 'not_started';
       return payload.data;
     } catch (error) {
       if (error instanceof SeparationProviderError) {

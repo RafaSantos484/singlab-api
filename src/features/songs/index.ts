@@ -6,7 +6,8 @@
 export { SongsModule } from './songs.module';
 export { SongsController } from './songs.controller';
 export { SongsService } from './songs.service';
-export type { RawSongInfo, RawSongUrlInfo, Song } from './songs.service';
+export { Song } from './songs.service';
+export type { RawSongInfo, RawSongUrlInfo } from './songs.service';
 export {
   UploadSongSchema,
   UploadSongResponseSchema,

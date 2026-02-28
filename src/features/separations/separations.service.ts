@@ -30,16 +30,18 @@ export class SeparationsService {
    * Orchestrates the separation flow:
    * 1. Gets provider instance from factory
    * 2. Fetches and validates song ownership
-   * 3. Extracts audio URL from song document
-   * 4. Submits separation request to provider
-   * 5. Handles provider-specific errors
+   * 3. Checks if separation already exists
+   * 4. Extracts audio URL from song document
+   * 5. Submits separation request to provider
+   * 6. Updates song document with separation info
+   * 7. Handles provider-specific errors
    *
    * @param userId - ID of the authenticated user
    * @param songId - ID of the song to separate
    * @param providerName - Optional provider identifier (defaults to first available)
    * @returns Provider-specific task metadata (format varies by provider)
    * @throws {NotFoundException} Song not found or doesn't belong to user
-   * @throws {ConflictException} Separation already exists with this provider
+   * @throws {ConflictException} Separation already exists on this song
    * @throws {ServiceUnavailableException} Provider is temporarily unavailable
    * @throws {BadGatewayException} Provider returned an error during submission
    * @throws {InternalServerErrorException} Unexpected error during processing
@@ -56,11 +58,33 @@ export class SeparationsService {
       throw new NotFoundException(`Song with ID ${songId} not found`);
     }
 
+    // Check if separation already exists
+    if (song.separatedSongInfo) {
+      this.logger.warn(
+        `Separation already exists for song ${songId}, cannot create a new one`,
+      );
+      throw new ConflictException(
+        'This song already has a separation. Delete it first before creating a new one.',
+      );
+    }
+
     const audioUrl = song.rawSongInfo.urlInfo.value;
     try {
-      const task = await provider.requestSeparation(audioUrl, song.title);
+      const data = await provider.requestSeparation(audioUrl, song.title);
 
-      return task;
+      // Update song document with separation info
+      await this.songsService.updateSongSeparationInfo(
+        userId,
+        songId,
+        provider.name,
+        data,
+      );
+
+      this.logger.log(
+        `Separation submitted successfully for song ${songId} (provider=${provider.name})`,
+      );
+
+      return data;
     } catch (error) {
       this.handleProviderError(error, provider.name);
     }

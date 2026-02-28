@@ -28,6 +28,7 @@ describe('Separations E2E (POST /songs/:songId/separations)', () => {
 
     const mockSongsService = {
       getSongById: jest.fn(),
+      updateSongSeparationInfo: jest.fn().mockResolvedValue(undefined),
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -64,9 +65,12 @@ describe('Separations E2E (POST /songs/:songId/separations)', () => {
         ok: true,
         status: 200,
         json: async () => ({
-          id: 'task-abc-123',
-          status: 'queued',
-          created_at: '2026-02-28T10:00:00Z',
+          data: {
+            taskId: 'task-abc-123',
+            status: 'queued',
+            createdTime: '2026-02-28T10:00:00Z',
+            provider: 'poyo',
+          },
         }),
       });
       (global as unknown as { fetch: typeof fetch }).fetch =
@@ -107,8 +111,10 @@ describe('Separations E2E (POST /songs/:songId/separations)', () => {
         ok: true,
         status: 200,
         json: async () => ({
-          id: 'task-456',
-          status: 'queued',
+          data: {
+            id: 'task-456',
+            status: 'queued',
+          },
         }),
       });
       (global as unknown as { fetch: typeof fetch }).fetch =
@@ -136,6 +142,32 @@ describe('Separations E2E (POST /songs/:songId/separations)', () => {
         error: {
           statusCode: 404,
           message: expect.stringContaining('not found'),
+        },
+      });
+    });
+
+    it('should return 409 when song already has separation info', async () => {
+      const songWithSeparation = {
+        ...mockSong,
+        separatedSongInfo: {
+          provider: 'poyo',
+          data: { taskId: 'existing-task' },
+        },
+      };
+
+      jest
+        .spyOn(songsService, 'getSongById')
+        .mockResolvedValue(songWithSeparation);
+
+      const response = await request(app.getHttpServer())
+        .post('/songs/song-123/separations')
+        .expect(HttpStatus.CONFLICT);
+
+      expect(response.body).toMatchObject({
+        success: false,
+        error: {
+          statusCode: 409,
+          message: expect.stringContaining('already has a separation'),
         },
       });
     });
