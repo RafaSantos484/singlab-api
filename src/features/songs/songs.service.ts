@@ -757,49 +757,6 @@ export class SongsService {
   }
 
   /**
-   * Updates song document with separation information.
-   *
-   * @param userId - User ID
-   * @param songId - Song ID
-   * @param provider - Provider name
-   * @param data - Provider-specific separation data
-   * @throws HttpException if song not found or update fails
-   */
-  async updateSongSeparationInfo(
-    userId: string,
-    songId: string,
-    provider: string,
-    data: unknown,
-    song: Song | null = null,
-  ): Promise<null> {
-    song ??= await this.getSongById(userId, songId);
-    if (!song) {
-      this.logger.warn(
-        `Attempted to update separation info for non-existent song ${songId} and user ${userId}`,
-      );
-      throw new HttpException('Song not found', HttpStatus.NOT_FOUND);
-    }
-
-    try {
-      await song.updateSeparatedSongInfo(provider, data);
-
-      this.logger.log(
-        `Updated separation info for song ${songId} with provider ${provider}`,
-      );
-      return null;
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(
-        `Failed to update separation info for song ${songId}: ${errorMsg}`,
-      );
-      throw new HttpException(
-        'Failed to update song separation info',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
-
-  /**
    * Refreshes raw song URL if expired or near expiration.
    * Checks urlInfo.expiresAt and generates new signed URL if needed.
    *

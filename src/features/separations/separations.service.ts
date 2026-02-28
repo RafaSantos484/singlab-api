@@ -33,11 +33,9 @@ export class SeparationsService {
    * @param songId - ID of the song to separate
    * @param providerName - Optional provider identifier (defaults to first available)
    * @returns Provider-specific task metadata (format varies by provider)
-   * @throws {NotFoundException} Song not found or doesn't belong to user
-   * @throws {ConflictException} Separation already exists on this song
-   * @throws {ServiceUnavailableException} Provider is temporarily unavailable
-   * @throws {BadGatewayException} Provider returned an error during submission
-   * @throws {InternalServerErrorException} Unexpected error during processing
+   * @throws {SongNotFoundError} Song not found or doesn't belong to user
+   * @throws {SeparationConflictError} Separation already exists on this song
+   * @throws {SeparationProviderError} Provider failed during submission
    */
   async submitSeparation(
     userId: string,
@@ -71,22 +69,19 @@ export class SeparationsService {
 
     const audioUrl = song.rawSongInfo.urlInfo.value;
     try {
-      const data = await provider.requestSeparation(audioUrl, song.title);
+      const separateTaskData = await provider.requestSeparation(
+        audioUrl,
+        song.title,
+      );
 
       // Update song document with separation info
-      await this.songsService.updateSongSeparationInfo(
-        userId,
-        songId,
-        provider.name,
-        data,
-        song, // Pass existing song to avoid redundant fetch
-      );
+      await song.updateSeparatedSongInfo(provider.name, separateTaskData);
 
       this.logger.log(
         `Separation submitted successfully for song ${songId} (provider=${provider.name})`,
       );
 
-      return data;
+      return separateTaskData;
     } catch (error) {
       if (error instanceof DomainError || error instanceof HttpException) {
         throw error;
@@ -148,13 +143,7 @@ export class SeparationsService {
 
     try {
       const detail = await provider.getTaskDetail(taskId);
-      await this.songsService.updateSongSeparationInfo(
-        userId,
-        songId,
-        provider.name,
-        detail,
-        song, // Pass existing song to avoid redundant fetch
-      );
+      await song.updateSeparatedSongInfo(provider.name, detail);
 
       this.logger.log(
         `Updated separation status for song ${songId} (task=${taskId})`,
