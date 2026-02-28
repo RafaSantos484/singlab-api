@@ -42,9 +42,9 @@ let ffmpeg: ((input: Readable) => FFmpegCommand) | null = null;
 function getFFmpegFn(): (input: Readable) => FFmpegCommand {
   if (!ffmpeg) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const ffmpegModule = require('fluent-ffmpeg');
-      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const ffmpegStatic = require('ffmpeg-static');
 
       if (ffmpegStatic) {
@@ -52,7 +52,6 @@ function getFFmpegFn(): (input: Readable) => FFmpegCommand {
         ffmpegModule.setFfmpegPath(ffmpegStatic);
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       ffmpeg = ffmpegModule;
     } catch (error) {
       throw new Error(

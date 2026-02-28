@@ -4,6 +4,7 @@ import {
   HttpStatus,
   Injectable,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 import type { Bucket } from '@google-cloud/storage';
@@ -12,6 +13,7 @@ import { FirebaseAdminProvider } from '../../auth/firebase-admin.provider';
 import { AudioConversionService } from '../audio/audio-conversion.service';
 import { UploadSongDto, UploadSongSchema } from './dtos/upload-song.dto';
 import { UpdateSongDto, UpdateSongSchema } from './dtos/update-song.dto';
+import { DocumentReference, DocumentSnapshot } from 'firebase-admin/firestore';
 
 // Song URL configuration constants
 export const SIGNED_URL_EXPIRY_DAYS = 7;
@@ -47,6 +49,13 @@ export interface SeparatedSongInfo {
   data: unknown;
 }
 
+type SongObject = {
+  title: string;
+  author: string;
+  rawSongInfo: RawSongInfo;
+  separatedSongInfo: SeparatedSongInfo | null;
+};
+
 /**
  * Song entity with type-safe access to properties.
  *
@@ -57,21 +66,28 @@ export interface SeparatedSongInfo {
  * Provides method to manage raw song URLs with automatic refresh logic.
  */
 export class Song {
+  private readonly _ref: DocumentReference;
   private readonly _title: string;
   private readonly _author: string;
   private readonly _rawSongInfo: RawSongInfo;
-  private readonly _separatedSongInfo?: SeparatedSongInfo;
+  private readonly _separatedSongInfo: SeparatedSongInfo | null;
 
   constructor(
+    ref: DocumentReference,
     title: string,
     author: string,
     rawSongInfo: RawSongInfo,
-    separatedSongInfo?: SeparatedSongInfo,
+    separatedSongInfo: SeparatedSongInfo | null,
   ) {
+    this._ref = ref;
     this._title = title;
     this._author = author;
     this._rawSongInfo = rawSongInfo;
     this._separatedSongInfo = separatedSongInfo;
+  }
+
+  get ref(): DocumentReference {
+    return this._ref;
   }
 
   get title(): string {
@@ -86,8 +102,32 @@ export class Song {
     return this._rawSongInfo;
   }
 
-  get separatedSongInfo(): SeparatedSongInfo | undefined {
+  get separatedSongInfo(): SeparatedSongInfo | null {
     return this._separatedSongInfo;
+  }
+
+  get userId(): string {
+    const parts = this._ref.path.split('/');
+    if (parts.length >= 2) {
+      return parts[1];
+    }
+    return '';
+  }
+  get songId(): string {
+    const parts = this._ref.path.split('/');
+    if (parts.length >= 4) {
+      return parts[3];
+    }
+    return '';
+  }
+
+  toObject(): SongObject {
+    return {
+      title: this._title,
+      author: this._author,
+      rawSongInfo: this._rawSongInfo,
+      separatedSongInfo: this._separatedSongInfo,
+    };
   }
 
   /**
@@ -103,13 +143,7 @@ export class Song {
    * @returns URL info with refresh status
    * @throws Error if URL generation or Firestore update fails
    */
-  async getRawSongUrlWithRefresh(
-    songDocRef: admin.firestore.DocumentReference,
-    bucket: Bucket,
-    userId: string,
-    songId: string,
-    logger: Logger,
-  ): Promise<{
+  async getRawSongUrlWithRefresh(bucket: Bucket): Promise<{
     value: string;
     expiresAt: string;
     refreshed: boolean;
@@ -127,40 +161,61 @@ export class Song {
     }
 
     // URL needs refresh - generate new signed URL
-    logger.debug(`Refreshing expired URL for song ${songId}, user ${userId}`);
-
+    const [userId, songId] = [this.userId, this.songId];
     const storagePath = `users/${userId}/songs/${songId}/raw.mp3`;
 
-    try {
-      const file = bucket.file(storagePath);
-      const [newSignedUrl] = await file.getSignedUrl({
-        version: 'v4',
-        action: 'read',
-        expires: Date.now() + SIGNED_URL_EXPIRY_MS,
-      });
+    const file = bucket.file(storagePath);
+    const [newSignedUrl] = await file.getSignedUrl({
+      version: 'v4',
+      action: 'read',
+      expires: Date.now() + SIGNED_URL_EXPIRY_MS,
+    });
 
-      const newUrlExpiresAt = new Date(
-        Date.now() + SIGNED_URL_EXPIRY_MS,
-      ).toISOString();
+    const newUrlExpiresAt = new Date(
+      Date.now() + SIGNED_URL_EXPIRY_MS,
+    ).toISOString();
 
-      // Update Firestore with new URL
-      await songDocRef.update({
-        'rawSongInfo.urlInfo.value': newSignedUrl,
-        'rawSongInfo.urlInfo.expiresAt': newUrlExpiresAt,
-      });
+    // Update Firestore with new URL
+    await this._ref.update({
+      'rawSongInfo.urlInfo.value': newSignedUrl,
+      'rawSongInfo.urlInfo.expiresAt': newUrlExpiresAt,
+    });
 
-      logger.log(`Refreshed raw song URL for song ${songId}, user ${userId}`);
+    return {
+      value: newSignedUrl,
+      expiresAt: newUrlExpiresAt,
+      refreshed: true,
+    };
+  }
 
-      return {
-        value: newSignedUrl,
-        expiresAt: newUrlExpiresAt,
-        refreshed: true,
-      };
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      logger.error(`Failed to refresh URL for song ${songId}: ${errorMsg}`);
-      throw error;
+  async updateSongMetadata(title?: string, author?: string): Promise<void> {
+    if (!title && !author) {
+      throw new BadRequestException(
+        'At least one of title or author must be provided',
+      );
     }
+
+    const updateData: Record<string, unknown> = {};
+    if (title) {
+      updateData.title = title;
+    }
+    if (author) {
+      updateData.author = author;
+    }
+
+    await this._ref.update(updateData);
+  }
+
+  async updateSeparatedSongInfo(
+    provider: string,
+    data: unknown,
+  ): Promise<void> {
+    await this._ref.update({
+      separatedSongInfo: {
+        provider,
+        data,
+      },
+    });
   }
 }
 
@@ -468,18 +523,18 @@ export class SongsService {
    */
   async getSongById(userId: string, songId: string): Promise<Song | null> {
     try {
-      const doc = await this.firestore
+      const snapshot = await this.firestore
         .collection('users')
         .doc(userId)
         .collection('songs')
         .doc(songId)
         .get();
 
-      if (!doc.exists) {
+      if (!snapshot.exists) {
         return null;
       }
 
-      return this.toSong(doc.data());
+      return this.toSong(snapshot);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to fetch song ${songId}: ${errorMsg}`);
@@ -506,70 +561,19 @@ export class SongsService {
    * @param data - Raw Firestore document data
    * @returns Validated Song instance or null if validation fails
    */
-  private toSong(data: admin.firestore.DocumentData | undefined): Song | null {
+  private toSong(snapshot: DocumentSnapshot): Song | null {
+    const data = snapshot.data() as SongObject | undefined;
     if (!data) {
       return null;
     }
 
-    const songData = data as Record<string, unknown>;
-    const title = songData.title;
-    const author = songData.author;
-    const rawSongInfo = songData.rawSongInfo;
-
-    if (
-      typeof title !== 'string' ||
-      typeof author !== 'string' ||
-      typeof rawSongInfo !== 'object' ||
-      rawSongInfo === null
-    ) {
-      return null;
-    }
-
-    const urlInfoValue = (rawSongInfo as { urlInfo?: unknown }).urlInfo;
-    const uploadedAtValue = (rawSongInfo as { uploadedAt?: unknown })
-      .uploadedAt;
-
-    if (
-      typeof urlInfoValue !== 'object' ||
-      urlInfoValue === null ||
-      typeof uploadedAtValue !== 'string'
-    ) {
-      return null;
-    }
-
-    const value = (urlInfoValue as { value?: unknown }).value;
-    const expiresAt = (urlInfoValue as { expiresAt?: unknown }).expiresAt;
-
-    if (typeof value !== 'string' || typeof expiresAt !== 'string') {
-      return null;
-    }
-
-    const rawSongInfoObj: RawSongInfo = {
-      urlInfo: {
-        value,
-        expiresAt,
-      },
-      uploadedAt: uploadedAtValue,
-    };
-
-    // Validate optional separatedSongInfo
-    let separatedSongInfo: SeparatedSongInfo | undefined;
-    const separatedData = songData.separatedSongInfo;
-    if (separatedData !== undefined) {
-      if (typeof separatedData === 'object' && separatedData !== null) {
-        const provider = (separatedData as { provider?: unknown }).provider;
-        const dataValue = (separatedData as { data?: unknown }).data;
-
-        if (typeof provider === 'string' && dataValue !== undefined) {
-          separatedSongInfo = {
-            provider,
-            data: dataValue,
-          };
-        }
-      }
-    }
-
-    return new Song(title, author, rawSongInfoObj, separatedSongInfo);
+    return new Song(
+      snapshot.ref,
+      data.title,
+      data.author,
+      data.rawSongInfo,
+      data.separatedSongInfo,
+    );
   }
 
   /**
@@ -582,7 +586,7 @@ export class SongsService {
   async listUserSongs(
     userId: string,
     limit: number = 50,
-  ): Promise<Array<{ id: string } & admin.firestore.DocumentData>> {
+  ): Promise<Array<Song>> {
     try {
       const snapshot = await this.firestore
         .collection('users')
@@ -591,10 +595,16 @@ export class SongsService {
         .limit(limit)
         .get();
 
-      return snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      return snapshot.docs.map((doc) => {
+        const data = doc.data();
+        return new Song(
+          doc.ref,
+          data.title,
+          data.author,
+          data.rawSongInfo,
+          data.separatedSongInfo,
+        );
+      });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to list songs for user ${userId}: ${errorMsg}`);
@@ -619,27 +629,17 @@ export class SongsService {
    * @returns Success confirmation
    * @throws HttpException if song not found or deletion fails
    */
-  async deleteSong(
-    userId: string,
-    songId: string,
-  ): Promise<{ success: boolean }> {
+  async deleteSong(userId: string, songId: string): Promise<null> {
+    // 1. Fetch song document to get storage path
+    const song = await this.getSongById(userId, songId);
+    if (!song) {
+      this.logger.warn(
+        `Attempted to delete non-existent song ${songId} for user ${userId}`,
+      );
+      throw new NotFoundException('Song not found');
+    }
+
     try {
-      // 1. Fetch song document to get storage path
-      const songDocRef = this.firestore
-        .collection('users')
-        .doc(userId)
-        .collection('songs')
-        .doc(songId);
-
-      const docSnapshot = await songDocRef.get();
-
-      if (!docSnapshot.exists) {
-        this.logger.warn(
-          `Attempted to delete non-existent song ${songId} for user ${userId}`,
-        );
-        throw new HttpException('Song not found', HttpStatus.NOT_FOUND);
-      }
-
       // 2. Build storage path for cleanup
       const storagePath = this.buildStoragePath(userId, songId);
 
@@ -658,10 +658,10 @@ export class SongsService {
       }
 
       // 4. Delete Firestore document
-      await songDocRef.delete();
+      await song.ref.delete();
       this.logger.log(`Deleted song ${songId} for user ${userId}`);
 
-      return { success: true };
+      return null;
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
@@ -688,90 +688,28 @@ export class SongsService {
    * @throws NotFoundException if song not found
    * @throws HttpException if update fails
    */
-  async updateSong(
+  async updateSongMetadata(
     userId: string,
     songId: string,
     updateData: Record<string, unknown>,
-  ): Promise<{
-    id: string;
-    title: string;
-    author: string;
-  }> {
+  ): Promise<null> {
     try {
       // 1. Validate update data - only allow title and author
       const validatedData = this.validateUpdateMetadata(updateData);
+      const song = await this.getSongById(userId, songId);
 
-      // 2. Check that at least one field is being updated
-      if (Object.keys(validatedData).length === 0) {
-        throw new BadRequestException(
-          'At least one field (title or author) must be provided',
-        );
-      }
-
-      // 3. Fetch the song document
-      const songDocRef = this.firestore
-        .collection('users')
-        .doc(userId)
-        .collection('songs')
-        .doc(songId);
-
-      const docSnapshot = await songDocRef.get();
-
-      if (!docSnapshot.exists) {
+      if (!song) {
         this.logger.warn(
           `Attempted to update non-existent song ${songId} for user ${userId}`,
         );
         throw new HttpException('Song not found', HttpStatus.NOT_FOUND);
       }
 
-      const currentSongData = docSnapshot.data();
+      // 2. Update Firestore document with new metadata
+      await song.updateSongMetadata(validatedData.title, validatedData.author);
 
-      // 4. Build update payload - only include provided fields
-      const updatePayload: Record<string, unknown> = {};
-
-      if (validatedData.title !== undefined) {
-        updatePayload.title = validatedData.title;
-      }
-
-      if (validatedData.author !== undefined) {
-        updatePayload.author = validatedData.author;
-      }
-
-      // 5. Persist the updates
-      await songDocRef.update(updatePayload);
-
-      this.logger.log(
-        `Updated song ${songId} for user ${userId}: ${Object.keys(updatePayload).join(', ')}`,
-      );
-
-      // 6. Return the updated song with both old and new fields
-      const currentData = currentSongData as
-        | {
-            title?: string;
-            author?: string;
-          }
-        | undefined;
-
-      let updatedTitle = '';
-      let updatedAuthor = '';
-
-      if (validatedData.title !== undefined) {
-        updatedTitle = validatedData.title;
-      } else if (currentData?.title !== undefined) {
-        updatedTitle = currentData.title;
-      }
-
-      if (validatedData.author !== undefined) {
-        updatedAuthor = validatedData.author;
-      } else if (currentData?.author !== undefined) {
-        updatedAuthor = currentData.author;
-      }
-
-      return {
-        id: songId,
-        title: updatedTitle,
-        author: updatedAuthor,
-      };
+      this.logger.log(`Updated song ${songId} for user ${userId}`);
+      return null;
     } catch (error) {
       // Re-throw validation and HTTP exceptions
       if (
@@ -832,24 +770,23 @@ export class SongsService {
     songId: string,
     provider: string,
     data: unknown,
-  ): Promise<void> {
-    try {
-      const songDocRef = this.firestore
-        .collection('users')
-        .doc(userId)
-        .collection('songs')
-        .doc(songId);
+  ): Promise<null> {
+    const song = await this.getSongById(userId, songId);
 
-      await songDocRef.update({
-        separatedSongInfo: {
-          provider,
-          data,
-        },
-      });
+    if (!song) {
+      this.logger.warn(
+        `Attempted to update separation info for non-existent song ${songId} and user ${userId}`,
+      );
+      throw new HttpException('Song not found', HttpStatus.NOT_FOUND);
+    }
+
+    try {
+      await song.updateSeparatedSongInfo(provider, data);
 
       this.logger.log(
-        `Updated separatedSongInfo for song ${songId}, user ${userId} (provider=${provider})`,
+        `Updated separation info for song ${songId} with provider ${provider}`,
       );
+      return null;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(
@@ -879,67 +816,17 @@ export class SongsService {
     expiresAt: string;
     refreshed: boolean;
   }> {
+    const song = await this.getSongById(userId, songId);
+
+    if (!song) {
+      this.logger.warn(
+        `Attempted to refresh URL for non-existent song ${songId} and user ${userId}`,
+      );
+      throw new NotFoundException(`Song with ID ${songId} not found`);
+    }
+
     try {
-      const songDocRef = this.firestore
-        .collection('users')
-        .doc(userId)
-        .collection('songs')
-        .doc(songId);
-
-      const docSnapshot = await songDocRef.get();
-
-      if (!docSnapshot.exists) {
-        throw new HttpException('Song not found', HttpStatus.NOT_FOUND);
-      }
-
-      const songData = docSnapshot.data() as
-        | { rawSongInfo?: RawSongInfo }
-        | undefined;
-      if (!songData?.rawSongInfo?.urlInfo) {
-        throw new HttpException(
-          'Song has no raw audio info',
-          HttpStatus.NOT_FOUND,
-        );
-      }
-
-      const { value, expiresAt } = songData.rawSongInfo.urlInfo;
-
-      // Check if URL needs refresh (expired or within threshold)
-      const expirationTime = new Date(expiresAt).getTime();
-      const now = Date.now();
-      const needsRefresh = expirationTime - now < REFRESH_THRESHOLD_MS;
-
-      if (!needsRefresh) {
-        // URL still valid, return as-is
-        return { value, expiresAt, refreshed: false };
-      }
-
-      // Generate new signed URL
-      this.logger.debug(
-        `Refreshing expired URL for song ${songId}, user ${userId}`,
-      );
-
-      const storagePath = this.buildStoragePath(userId, songId);
-      const newSignedUrl = await this.generateSignedUrl(storagePath);
-      const newUrlExpiresAt = new Date(
-        Date.now() + SIGNED_URL_EXPIRY_MS,
-      ).toISOString();
-
-      // Update Firestore with new URL
-      await songDocRef.update({
-        'rawSongInfo.urlInfo.value': newSignedUrl,
-        'rawSongInfo.urlInfo.expiresAt': newUrlExpiresAt,
-      });
-
-      this.logger.log(
-        `Refreshed raw song URL for song ${songId}, user ${userId}`,
-      );
-
-      return {
-        value: newSignedUrl,
-        expiresAt: newUrlExpiresAt,
-        refreshed: true,
-      };
+      return await song.getRawSongUrlWithRefresh(this.bucket);
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
