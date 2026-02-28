@@ -11,6 +11,7 @@ import { FirestoreProvider } from '../../infrastructure/database/firestore/fires
 import { FirebaseAdminProvider } from '../../auth/firebase-admin.provider';
 import { AudioConversionService } from '../audio/audio-conversion.service';
 import { UploadSongDto, UploadSongSchema } from './dtos/upload-song.dto';
+import { UpdateSongDto, UpdateSongSchema } from './dtos/update-song.dto';
 
 /**
  * Interface for raw song storage metadata.
@@ -459,6 +460,148 @@ export class SongsService {
         'Failed to delete song',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
+    }
+  }
+
+  /**
+   * Updates a song's metadata (title and/or author).
+   * Only updates the provided fields, ignoring any file-related inputs.
+   *
+   * @param userId - User ID
+   * @param songId - Song ID
+   * @param updateData - Partial update data (title, author)
+   * @returns Updated song with id, title, and author
+   * @throws BadRequestException if validation fails or no fields to update
+   * @throws NotFoundException if song not found
+   * @throws HttpException if update fails
+   */
+  async updateSong(
+    userId: string,
+    songId: string,
+    updateData: Record<string, unknown>,
+  ): Promise<{
+    id: string;
+    title: string;
+    author: string;
+  }> {
+    try {
+      // 1. Validate update data - only allow title and author
+      const validatedData = this.validateUpdateMetadata(updateData);
+
+      // 2. Check that at least one field is being updated
+      if (Object.keys(validatedData).length === 0) {
+        throw new BadRequestException(
+          'At least one field (title or author) must be provided',
+        );
+      }
+
+      // 3. Fetch the song document
+      const songDocRef = this.firestore
+        .collection('users')
+        .doc(userId)
+        .collection('songs')
+        .doc(songId);
+
+      const docSnapshot = await songDocRef.get();
+
+      if (!docSnapshot.exists) {
+        this.logger.warn(
+          `Attempted to update non-existent song ${songId} for user ${userId}`,
+        );
+        throw new HttpException('Song not found', HttpStatus.NOT_FOUND);
+      }
+
+      const currentSongData = docSnapshot.data();
+
+      // 4. Build update payload - only include provided fields
+      const updatePayload: Record<string, unknown> = {};
+
+      if (validatedData.title !== undefined) {
+        updatePayload.title = validatedData.title;
+      }
+
+      if (validatedData.author !== undefined) {
+        updatePayload.author = validatedData.author;
+      }
+
+      // 5. Persist the updates
+      await songDocRef.update(updatePayload);
+
+      this.logger.log(
+        `Updated song ${songId} for user ${userId}: ${Object.keys(updatePayload).join(', ')}`,
+      );
+
+      // 6. Return the updated song with both old and new fields
+      const currentData = currentSongData as
+        | {
+            title?: string;
+            author?: string;
+          }
+        | undefined;
+
+      let updatedTitle = '';
+      let updatedAuthor = '';
+
+      if (validatedData.title !== undefined) {
+        updatedTitle = validatedData.title;
+      } else if (currentData?.title !== undefined) {
+        updatedTitle = currentData.title;
+      }
+
+      if (validatedData.author !== undefined) {
+        updatedAuthor = validatedData.author;
+      } else if (currentData?.author !== undefined) {
+        updatedAuthor = currentData.author;
+      }
+
+      return {
+        id: songId,
+        title: updatedTitle,
+        author: updatedAuthor,
+      };
+    } catch (error) {
+      // Re-throw validation and HTTP exceptions
+      if (
+        error instanceof BadRequestException ||
+        error instanceof HttpException
+      ) {
+        throw error;
+      }
+
+      let errorMsg = 'Unknown error';
+      if (error instanceof Error) {
+        errorMsg = error.message;
+      }
+
+      this.logger.error(`Failed to update song ${songId}: ${errorMsg}`);
+      throw new HttpException(
+        'Failed to update song',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * Validates song metadata for update (partial).
+   * Only allows title and author fields, filters out everything else.
+   * Does not throw on extra fields (simply ignores them).
+   *
+   * @param updateData - Raw update data
+   * @returns Validated metadata with only allowed fields
+   * @throws BadRequestException if validation fails
+   */
+  private validateUpdateMetadata(
+    updateData: Record<string, unknown>,
+  ): UpdateSongDto {
+    try {
+      return UpdateSongSchema.parse(updateData);
+    } catch (error) {
+      const zodError = error as { errors?: Array<{ message: string }> };
+      const messages =
+        zodError.errors?.map((e) => e.message).join('; ') ||
+        'Validation failed';
+      this.logger.debug(`Update metadata validation failed: ${messages}`);
+      throw new BadRequestException(`Invalid update data: ${messages}`);
     }
   }
 

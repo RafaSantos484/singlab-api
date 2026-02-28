@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Delete,
+  Patch,
   Param,
   UseInterceptors,
   UploadedFile,
@@ -174,6 +175,65 @@ export class SongsController {
         id: songId,
         ...song,
       },
+    };
+  }
+
+  /**
+   * Updates a song's metadata (title and/or author).
+   * Only the provided fields are updated. File-related inputs are ignored.
+   *
+   * Request body:
+   * ```json
+   * {
+   *   "title": "New Song Title",
+   *   "author": "New Artist Name"
+   * }
+   * ```
+   *
+   * At least one field (title or author) must be provided.
+   * Both title and author must follow the same validation as upload:
+   * - Minimum length: 1 character
+   * - Maximum length: 255 characters
+   * - String type required
+   *
+   * @param req - Request with authenticated user
+   * @param songId - Song document ID
+   * @param body - Update payload with optional title and author
+   * @returns Updated song with id, title, and author
+   * @throws BadRequestException if validation fails or no fields provided
+   * @throws NotFoundException if song not found
+   * @throws HttpException if update fails
+   */
+  @Patch(':songId')
+  @HttpCode(HttpStatus.OK)
+  async updateSong(
+    @Req() req: AuthenticatedRequest,
+    @Param('songId') songId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    if (!req.user?.uid) {
+      throw new BadRequestException('User authentication required');
+    }
+
+    // Validate songId is provided and non-empty
+    if (!songId || typeof songId !== 'string' || songId.trim() === '') {
+      this.logger.debug('Update attempt with invalid song ID');
+      throw new BadRequestException('Valid song ID is required');
+    }
+
+    this.logger.log(
+      `Update request for song ${songId} by user ${req.user.uid}`,
+    );
+
+    const updatedSong = await this.songsService.updateSong(
+      req.user.uid,
+      songId,
+      body,
+    );
+
+    return {
+      success: true,
+      data: updatedSong,
     };
   }
 

@@ -11,6 +11,11 @@ export {
   UploadSongResponseSchema,
 } from './dtos/upload-song.dto';
 export type { UploadSongDto, UploadSongResponse } from './dtos/upload-song.dto';
+export {
+  UpdateSongSchema,
+  UpdateSongResponseSchema,
+} from './dtos/update-song.dto';
+export type { UpdateSongDto, UpdateSongResponse } from './dtos/update-song.dto';
 
 /**
  * @deprecated Use AudioConversionService from 'src/features/audio' instead.

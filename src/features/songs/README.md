@@ -1,73 +1,73 @@
 # Songs Feature Module
 
-Módulo responsável pelo upload e gerenciamento de músicas com conversão automática de áudio e persistência de metadados em transações Firestore.
+Module responsible for song upload and management with automatic audio conversion and metadata persistence using Firestore transactions.
 
-## Funcionalidades
+## Features
 
-### 1. Upload de Música
-- Aceita arquivos de áudio (MP3, WAV, OGG, WebM, AAC, FLAC, M4A, WMA, Opus) ou vídeo (MP4, WebM, MOV)
-- Automaticamente converte o arquivo para formato MP3 padrão
-- Valida metadados usando Zod schema (title, author)
-- Realiza operações em transação atômica Firestore
+### 1. Song Upload
+- Accepts audio files (MP3, WAV, OGG, WebM, AAC, FLAC, M4A, WMA, Opus) or video (MP4, WebM, MOV)
+- Automatically converts file to standard MP3 format
+- Validates metadata using Zod schema (title, author)
+- Performs operations in atomic Firestore transactions
 
-### 2. Armazenamento
-- **Firestore**: Documento com metadados em `/users/{userId}/songs/{songId}`
-  - `title`: Título da música
-  - `author`: Artista/Autor
-  - `rawSongInfo`: Objeto com informações do arquivo raw
+### 2. Storage
+- **Firestore**: Document with metadata at `/users/{userId}/songs/{songId}`
+  - `title`: Song title
+  - `author`: Artist/Author
+  - `rawSongInfo`: Object with raw file information
     - `urlInfo`: Signed URL info
-      - `value`: URL assinada do arquivo no Storage (válida por 7 dias)
+      - `value`: Signed URL of file in Storage (valid for 7 days)
       - `expiresAt`: Expiration timestamp (ISO 8601)
-    - `uploadedAt`: Timestamp do upload (ISO 8601)
-  - `status`: Estado do processamento ('processing' → 'ready')
-  - `format`: Formato final ('mp3')
+    - `uploadedAt`: Upload timestamp (ISO 8601)
+  - `status`: Processing state ('processing' → 'ready')
+  - `format`: Final format ('mp3')
 
-- **Firebase Storage**: Arquivo convertido em `/users/{userId}/songs/{songId}/raw.mp3`
+- **Firebase Storage**: Converted file at `/users/{userId}/songs/{songId}/raw.mp3`
 
-### 3. URL Refresh Automático
-- URLs assinadas expiram em **7 dias**
-- Use `GET /songs/:songId/raw/url` para obter URL sempre válida
-- Backend verifica expiração e renova automaticamente se <24h restantes
-- Cliente evita quebras de link sem lógica complexa
+### 3. Automatic URL Refresh
+- Signed URLs expire in **7 days**
+- Use `GET /songs/:songId/raw/url` to get always-valid URL
+- Backend checks expiration and automatically renews if <24h remaining
+- Client avoids broken links without complex logic
 
-## Arquitetura
+## Architecture
 
 ```
 src/features/songs/
-├── songs.module.ts              # Módulo NestJS (imports AudioModule)
+├── songs.module.ts              # NestJS module (imports AudioModule)
 ├── songs.controller.ts          # HTTP endpoints
-├── songs.service.ts             # Lógica de negócio
+├── songs.service.ts             # Business logic
 ├── dtos/
-│   └── upload-song.dto.ts      # Schemas Zod + tipos
+│   └── upload-song.dto.ts      # Zod schemas + types
 ├── utils/
 │   └── audio-conversion.util.ts # ❌ DEPRECATED - Use AudioModule instead
-└── index.ts                      # Exportações públicas
+└── index.ts                      # Public exports
 ```
 
-### Dependências de Módulo
+### Module Dependencies
 
 - **AudioModule** (src/features/audio/)
-  - Fornece `AudioConversionService` para conversão de áudio
-  - Responsável por detecção de formato e conversão MP3
-  - Implementa FFmpeg com thread-safety e timeout
+  - Provides `AudioConversionService` for audio conversion
+  - Responsible for format detection and MP3 conversion
+  - Implements FFmpeg with thread-safety and timeout
 
 - **DatabaseModule** (src/infrastructure/database/)
-  - Fornece acesso ao Firestore
-  - Repository pattern para persistência
+  - Provides Firestore access
+  - Repository pattern for persistence
 
 ## Endpoints
 
-### 1. Upload de Música
+### 1. Upload Song
 ```http
 POST /songs/upload
 Content-Type: multipart/form-data
 Authorization: <Firebase Auth Token>
 
-file: <arquivo de áudio/vídeo>
+file: <audio/video file>
 metadata: {"title": "Song Name", "author": "Artist Name"}
 ```
 
-**Resposta (201 Created):**
+**Response (201 Created):**
 ```json
 {
   "success": true,
@@ -86,13 +86,13 @@ metadata: {"title": "Song Name", "author": "Artist Name"}
 }
 ```
 
-### 2. Obter Música por ID
+### 2. Get Song by ID
 ```http
 GET /songs/:songId
 Authorization: <Firebase Auth Token>
 ```
 
-**Resposta (200 OK):**
+**Response (200 OK):**
 ```json
 {
   "success": true,
@@ -113,13 +113,13 @@ Authorization: <Firebase Auth Token>
 }
 ```
 
-### 3. Listar Músicas do Usuário
+### 3. List User Songs
 ```http
 GET /songs
 Authorization: <Firebase Auth Token>
 ```
 
-**Resposta (200 OK):**
+**Response (200 OK):**
 ```json
 {
   "success": true,
@@ -143,18 +143,18 @@ Authorization: <Firebase Auth Token>
 }
 ```
 
-### 4. Obter URL Atualizada do Arquivo Raw
+### 4. Get Refreshed Raw File URL
 ```http
 GET /songs/:songId/raw/url
 Authorization: <Firebase Auth Token>
 ```
 
-**Comportamento:**
-- Verifica validade da URL armazenada (`urlInfo.expiresAt`)
-- Se <24h restantes ou expirada: gera nova URL (válida por 7 dias) e atualiza Firestore
-- Se >24h restantes: retorna URL atual
+**Behavior:**
+- Checks validity of stored URL (`urlInfo.expiresAt`)
+- If <24h remaining or expired: generates new URL (valid for 7 days) and updates Firestore
+- If >24h remaining: returns current URL
 
-**Resposta (200 OK):**
+**Response (200 OK):**
 ```json
 {
   "success": true,
@@ -166,15 +166,15 @@ Authorization: <Firebase Auth Token>
 }
 ```
 
-**Campo `refreshed`:**
-- `false`: URL existente ainda válida (cache-friendly)
-- `true`: Nova URL gerada (cliente deve invalidar cache)
+**Field `refreshed`:**
+- `false`: Existing URL still valid (cache-friendly)
+- `true`: New URL generated (client should invalidate cache)
 
-**Erros:**
-- `404 Not Found`: Música não existe ou não possui arquivo raw
-- `500 Internal Server Error`: Erro ao gerar URL assinada
+**Errors:**
+- `404 Not Found`: Song does not exist or has no raw file
+- `500 Internal Server Error`: Error generating signed URL
 
-**Uso recomendado:**
+**Recommended usage:**
 ```typescript
 // Client checks urlInfo.expiresAt before using
 if (new Date(song.rawSongInfo.urlInfo.expiresAt) < new Date()) {
@@ -184,15 +184,15 @@ if (new Date(song.rawSongInfo.urlInfo.expiresAt) < new Date()) {
 }
 ```
 
-### 5. Deletar Música
+### 5. Delete Song
 ```http
 DELETE /songs/:songId
 Authorization: <Firebase Auth Token>
 ```
 
-Deleta a música e seu arquivo associado do Cloud Storage.
+Deletes the song and its associated file from Cloud Storage.
 
-**Resposta (200 OK):**
+**Response (200 OK):**
 ```json
 {
   "success": true,
@@ -200,22 +200,104 @@ Deleta a música e seu arquivo associado do Cloud Storage.
 }
 ```
 
-**Erros:**
-- `404 Not Found`: Música não existe
-- `500 Internal Server Error`: Erro ao deletar arquivo/documento
+**Errors:**
+- `404 Not Found`: Song does not exist
+- `500 Internal Server Error`: Error deleting file/document
 
-## Validação com Zod
+### 6. Update Song Metadata (PATCH)
+```http
+PATCH /songs/:songId
+Content-Type: application/json
+Authorization: <Firebase Auth Token>
 
-O módulo valida automaticamente os metadados da música:
-
-```typescript
 {
-  title: string    // 1-255 caracteres
-  author: string   // 1-255 caracteres
+  "title": "New Song Title",
+  "author": "New Artist Name"
 }
 ```
 
-Erros de validação retornam `400 Bad Request`:
+Updates only title and/or author fields. Unspecified fields are not modified. Requests with file-related fields (file, rawSongInfo, etc.) have those fields automatically ignored.
+
+**Validation:**
+- `title`: 1-255 characters (optional)
+- `author`: 1-255 characters (optional)
+- At least one field must be provided
+- Updating file or other sensitive information is not allowed
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "abc123",
+    "title": "New Song Title",
+    "author": "New Artist Name"
+  }
+}
+```
+
+**Examples:**
+
+Update title only:
+```http
+PATCH /songs/abc123
+{"title": "Updated Title"}
+```
+
+Update both:
+```http
+PATCH /songs/abc123
+{"title": "New Title", "author": "New Author"}
+```
+
+Ignore disallowed fields (security example):
+```http
+PATCH /songs/abc123
+{
+  "title": "New Title",
+  "file": "malicious-file.mp3",
+  "rawSongInfo": {"urlInfo": {"value": "hacked-url"}}
+}
+```
+Result: Only title is updated, other fields are ignored
+
+**Errors:**
+- `400 Bad Request`: Validation failed or no valid field provided
+- `404 Not Found`: Song does not exist
+- `500 Internal Server Error`: Update error
+
+### 7. Delete Song (DELETE)
+```http
+DELETE /songs/:songId
+Authorization: <Firebase Auth Token>
+```
+
+Deletes the song and its associated file from Cloud Storage.
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Song deleted successfully"
+}
+```
+
+**Errors:**
+- `404 Not Found`: Song does not exist
+- `500 Internal Server Error`: Error deleting file/document
+
+## Zod Validation
+
+The module automatically validates song metadata:
+
+```typescript
+{
+  title: string    // 1-255 characters
+  author: string   // 1-255 characters
+}
+```
+
+Validation errors return `400 Bad Request`:
 ```json
 {
   "statusCode": 400,
@@ -223,17 +305,17 @@ Erros de validação retornam `400 Bad Request`:
 }
 ```
 
-## Conversão de Áudio
+## Audio Conversion
 
-Utiliza FFmpeg para converter automaticamente para MP3:
+Uses FFmpeg to automatically convert to MP3:
 
 - **Input**: MP3, WAV, OGG, WebM, MP4, MOV, AAC, FLAC, M4A, WMA, Opus
-- **Output**: MP3 (128 kbps, 44.1 kHz, 2 canais)
-- **Armazenamento**: `/users/{userId}/songs/{songId}/raw.mp3`
+- **Output**: MP3 (128 kbps, 44.1 kHz, 2 channels)
+- **Storage**: `/users/{userId}/songs/{songId}/raw.mp3`
 
-### Formatos Suportados
+### Supported Formats
 
-**Áudio:**
+**Audio:**
 - MP3
 - WAV
 - OGG
@@ -244,29 +326,29 @@ Utiliza FFmpeg para converter automaticamente para MP3:
 - WMA
 - Opus
 
-**Vídeo (extrai áudio):**
+**Video (extracts audio):**
 - MP4
 - WebM
 - MOV
 
-## Transações Firestore
+## Firestore Transactions
 
-Todas as operações são executadas em transações atômicas para garantir consistência:
+All operations are executed in atomic transactions to ensure consistency:
 
-1. ✅ Criação do documento Firestore com metadados
-2. ✅ Upload do arquivo convertido no Storage
-3. ✅ Geração de URL assinada
-4. ✅ Atualização do documento com URL do Storage
-5. ❌ Se qualquer etapa falhar, toda a transação é reversão
+1. ✅ Create Firestore document with metadata
+2. ✅ Upload converted file to Storage
+3. ✅ Generate signed URL
+4. ✅ Update document with Storage URL
+5. ❌ If any step fails, entire transaction is rolled back
 
-**Benefícios:**
-- Não há documentos orfãos sem arquivo
-- Não há arquivos orfãos sem documento
-- Consistência garantida entre Firestore e Storage
+**Benefits:**
+- No orphaned documents without files
+- No orphaned files without documents
+- Guaranteed consistency between Firestore and Storage
 
-## Configuração
+## Configuration
 
-### Variáveis de Ambiente
+### Environment Variables
 
 ```env
 # Firebase
@@ -277,7 +359,7 @@ GOOGLE_APPLICATION_CREDENTIALS=<path/to/credentials.json>
 FIREBASE_STORAGE_BUCKET=<project-id>.appspot.com
 ```
 
-### Permissões Firestore/Storage
+### Firestore/Storage Permissions
 
 ```
 # firestore.rules
@@ -291,20 +373,20 @@ match /users/{userId}/songs/{allPaths=**} {
 }
 ```
 
-## Tratamento de Erros
+## Error Handling
 
-| Erro | Código | Causa |
+| Error | Code | Cause |
 |------|--------|-------|
-| `Invalid song data` | 400 | Metadados não passaram na validação Zod |
-| `Unsupported file format` | 400 | Formato do arquivo não é suportado |
-| `File is required` | 400 | Nenhum arquivo foi enviado |
-| `Metadata JSON is required` | 400 | Campo 'metadata' está vazio |
-| `User authentication required` | 400 | Token Firebase ausente ou inválido |
-| `Failed to upload song` | 500 | Erro durante conversão, storage ou Firestore |
-| `Failed to fetch song` | 500 | Erro ao buscar documento |
-| `Failed to list songs` | 500 | Erro ao listar músicas do usuário |
+| `Invalid song data` | 400 | Metadata did not pass Zod validation |
+| `Unsupported file format` | 400 | File format is not supported |
+| `File is required` | 400 | No file was uploaded |
+| `Metadata JSON is required` | 400 | 'metadata' field is empty |
+| `User authentication required` | 400 | Firebase token missing or invalid |
+| `Failed to upload song` | 500 | Error during conversion, storage or Firestore |
+| `Failed to fetch song` | 500 | Error fetching document |
+| `Failed to list songs` | 500 | Error listing user songs |
 
-## Exemplo de Uso (Client)
+## Usage Example (Client)
 
 ### JavaScript/TypeScript
 
@@ -340,96 +422,96 @@ curl -X POST http://localhost:5001/songs/upload \
   -F 'metadata={"title":"My Song","author":"My Name"}'
 ```
 
-## Desenvolvimento Local
+## Local Development
 
-### Rodando os Testes
+### Running Tests
 
 ```bash
-# Todos os testes
+# All tests
 npm test
 
-# Apenas testes de songs
+# Songs tests only
 npm test -- features/songs
 
-# Modo watch
+# Watch mode
 npm test:watch
 ```
 
-### Rodando o Servidor Local
+### Running Local Server
 
 ```bash
 npm run dev
 ```
 
-Acesso: `http://localhost:5001`
+Access: `http://localhost:5001`
 
-### Emulador Firebase
+### Firebase Emulator
 
 ```bash
 npm run serve
 ```
 
-## Migração de Código Legado
+## Legacy Code Migration
 
 ### AudioConversionUtil (DEPRECATED)
 
-O utilitário `audio-conversion.util.ts` foi substituído por `AudioConversionService` para melhor arquitetura e performance.
+The `audio-conversion.util.ts` utility has been replaced by `AudioConversionService` for better architecture and performance.
 
-**Motivos da migração:**
-- ✅ Inicialização thread-safe de FFmpeg
-- ✅ Streaming direto para storage (sem acúmulo em memória)
-- ✅ Timeout protection (30 segundos)
-- ✅ Melhor tratamento de erros
-- ✅ Pattern de injeção de dependência NestJS
+**Migration reasons:**
+- ✅ Thread-safe FFmpeg initialization
+- ✅ Direct streaming to storage (no memory accumulation)
+- ✅ Timeout protection (30 seconds)
+- ✅ Better error handling
+- ✅ NestJS dependency injection pattern
 
-**Como migrar seu código:**
+**How to migrate your code:**
 
-Se você ainda está usando `AudioConversionUtil`:
+If you're still using `AudioConversionUtil`:
 
 ```typescript
-// ❌ ANTES (deprecated)
+// ❌ BEFORE (deprecated)
 import { AudioConversionUtil } from 'src/features/songs/utils/audio-conversion.util';
 
 const result = await AudioConversionUtil.convertToMp3(buffer, format);
 ```
 
 ```typescript
-// ✅ DEPOIS
+// ✅ AFTER
 import { AudioConversionService } from 'src/features/audio/audio-conversion.service';
 
 constructor(private audioConversionService: AudioConversionService) {}
 
-// Substituir convertToMp3() por convertAndStreamToStorage()
+// Replace convertToMp3() with convertAndStreamToStorage()
 const result = await this.audioConversionService.convertAndStreamToStorage(
   buffer,
   format,
   storagePath
 );
 
-// Substituir outros métodos
+// Replace other methods
 const format = this.audioConversionService.getFileFormat(mimetype, filename);
 const isSupported = this.audioConversionService.isSupportedFormat(format);
 ```
 
 **Timeline:**
-- v1.x: AudioConversionUtil marcado como @deprecated
-- v2.0: Remoção completa
+- v1.x: AudioConversionUtil marked as @deprecated
+- v2.0: Complete removal
 
-## Próximas Melhorias
+## Future Improvements
 
-- [x] ~~Caching de URLs assinadas~~ → **Implementado refresh automático**
-- [ ] Processamento assíncrono com Cloud Tasks (para arquivos maiores)
-- [ ] Normalização de metadados (ID3 tags)
-- [ ] Detecção automática de BPM
-- [ ] Separação automática de voz/instrumental (stems)
-- [ ] Geração de karaoke com remoção de vocal
-- [ ] Limite de tamanho de arquivo configurável
-- [ ] Compressão de áudio adaptativa baseada em dispositivo
-- [ ] Suporte a múltiplas versões de qualidade (bitrates)
+- [x] ~~Signed URL caching~~ → **Auto-refresh implemented**
+- [ ] Asynchronous processing with Cloud Tasks (for larger files)
+- [ ] Metadata normalization (ID3 tags)
+- [ ] Automatic BPM detection
+- [ ] Automatic vocal/instrumental separation (stems)
+- [ ] Karaoke generation with vocal removal
+- [ ] Configurable file size limit
+- [ ] Adaptive audio compression based on device
+- [ ] Support for multiple quality versions (bitrates)
 
-## Monitoramento
+## Monitoring
 
-Logs importantes para monitoramento:
+Important logs for monitoring:
 
 ```
 [SongsService] Song upload initiated...
@@ -441,19 +523,19 @@ Logs importantes para monitoramento:
 
 ## Troubleshooting
 
-### FFmpeg não encontrado
-- Instale FFmpeg: `brew install ffmpeg` (macOS) ou `choco install ffmpeg` (Windows)
-- Configure o caminho manualmente se necessário
+### FFmpeg not found
+- Install FFmpeg: `brew install ffmpeg` (macOS) or `choco install ffmpeg` (Windows)
+- Manually configure path if necessary
 
-### Erro de permissão no Storage
-- Verifique as regras de segurança do Firebase Storage
-- Confirme que `FIREBASE_STORAGE_BUCKET` está configurado
+### Storage permission error
+- Verify Firebase Storage security rules
+- Confirm `FIREBASE_STORAGE_BUCKET` is configured
 
-### Erro de transação Firestore
-- Limite de 500 operações por transação não foi ultrapassado (improvável)
-- Tente novamente; pode ser erro temporário de conectividade
+### Firestore transaction error
+- Limit of 500 operations per transaction not exceeded (unlikely)
+- Try again; may be temporary connectivity error
 
-## Referências
+## References
 
 - [Firebase Admin SDK - Firestore](https://firebase.google.com/docs/firestore)
 - [Firebase Admin SDK - Storage](https://firebase.google.com/docs/storage)
