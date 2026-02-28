@@ -12,15 +12,11 @@ import {
   ValidationPipe,
   UnauthorizedException,
 } from '@nestjs/common';
-import type { Request } from 'express';
 import { FirebaseAuthGuard } from '../../auth/firebase-auth.guard';
+import type { AuthenticatedRequest } from '../../auth/types';
 import { SeparationsService } from './separations.service';
 import { SubmitSeparationDto } from './dto/submit-separation.dto';
 import { Env } from '../../config/env.config';
-
-interface AuthenticatedRequest extends Request {
-  user?: { uid: string } | null;
-}
 
 @Controller('songs')
 @UseGuards(FirebaseAuthGuard)
