@@ -10,7 +10,11 @@ describe('AppController (e2e)', () => {
   const originalEnv = process.env;
 
   beforeEach(async () => {
-    process.env = { ...originalEnv, SKIP_AUTH: 'true' };
+    process.env = {
+      ...originalEnv,
+      SKIP_AUTH: 'true',
+      POYO_API_KEY: 'test-api-key',
+    };
     const mockFirestore = {
       settings: jest.fn(),
       collection: jest.fn().mockReturnThis(),
