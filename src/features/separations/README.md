@@ -7,14 +7,14 @@ Submit stem separation tasks for songs via a provider-agnostic interface. The co
 - **URL**: `POST /songs/:songId/separations`
 - **Path Params**:
   - `songId` (string, required): ID of the song to separate.
-- **Body**
-  - `title` (string, optional, max 255): Custom title for the separation (defaults to song title).
-  - `modelName` (enum, optional, default `base`): `base | enhanced | instrumental`.
-  - `outputType` (enum, optional, default `general`): `general | bass | drums | other | piano | guitar | vocals`.
-  - `callbackUrl` (string, optional): HTTPS URL for provider callback.
+- **Query Params**:
+  - `provider` (string, optional): Separation provider to use (defaults to first available provider).
+- **Body**: none
 - **Auth**: Firebase bearer token (required in production).
 
-The `audioUrl` is automatically obtained from the song's `rawSongInfo.urlInfo.value`. The song must exist and belong to the authenticated user.
+The `audioUrl` and `title` are automatically obtained from the song document (`rawSongInfo.urlInfo.value` and `title`).
+The separation model and output type are hardcoded in the provider implementation (currently `base` model and `general` output type for PoYo).
+The song must exist and belong to the authenticated user.
 
 ## Response
 
@@ -23,24 +23,35 @@ The `audioUrl` is automatically obtained from the song's `rawSongInfo.urlInfo.va
 {
   "success": true,
   "data": {
-    "taskId": "...",
-    "status": "queued",
-    "createdTime": "2026-02-28T00:00:00Z",
-    "provider": "poyo"
+    "task_id": "xxxx-xxxx-xxxx",
+    "created_time": "2026-02-28T00:00:00Z"
   }
 }
 ```
 
-`404 Not Found` if song doesn't exist or doesn't belong to the user.
+The exact response format depends on the provider implementation.
+
+**Error Responses**:
+- `404 Not Found` - Song doesn't exist or doesn't belong to the user
+- `409 Conflict` - Separation already exists for this audio with the provider
+- `502 Bad Gateway` - Provider returned an error
+- `503 Service Unavailable` - Provider is temporarily unavailable
 
 ## Configuration
 
-- `SEPARATION_PROVIDER` (default `poyo`)
-- `POYO_API_KEY` (required when provider is PoYo)
-- `POYO_API_BASE_URL` (default `https://app.poyoclub.com`)
+- `POYO_API_KEY` (required): PoYo API authentication key
+- `POYO_API_BASE_URL` (default: `https://api.poyo.ai`): PoYo API base URL
 
-Configuration is validated at startup; missing PoYo credentials prevent boot.
+Configuration is validated at startup; missing API key prevents boot.
 
 ## Architecture
 
-Controller → Service (fetches song) → Provider Factory → Provider implementation (PoYo). Add new providers by implementing `StemSeparationProvider` and wiring into the factory.
+Controller → Service (fetches song) → Provider Factory → Provider implementation (PoYo). 
+
+The service layer:
+1. Retrieves provider from factory
+2. Fetches song document with full validation
+3. Calls `provider.requestSeparation()` with audio URL and title
+4. Handles provider-specific errors and converts them to HTTP exceptions
+
+Add new providers by implementing `StemSeparationProvider` interface and registering in the factory.
