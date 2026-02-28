@@ -103,20 +103,9 @@ export class Env {
   }
 
   /**
-   * Selected stem separation provider.
-   *
-   * @returns Provider identifier (lowercase)
-   * @default 'poyo'
-   */
-  static get separationProvider(): string {
-    const provider = process.env.SEPARATION_PROVIDER?.trim().toLowerCase();
-    return provider && provider.length > 0 ? provider : 'poyo';
-  }
-
-  /**
    * PoYo API key for stem separation.
    *
-   * Required when SEPARATION_PROVIDER is set to 'poyo'.
+   * Required when using PoYo separation provider.
    *
    * @returns API key string
    * @throws Error if not configured
@@ -135,10 +124,10 @@ export class Env {
    * PoYo API base URL.
    *
    * @returns Base URL for PoYo API
-   * @default 'https://app.poyoclub.com'
+   * @default 'https://api.poyo.ai'
    */
   static get poyoApiBaseUrl(): string {
-    return process.env.POYO_API_BASE_URL?.trim() ?? 'https://app.poyoclub.com';
+    return process.env.POYO_API_BASE_URL?.trim() ?? 'https://api.poyo.ai';
   }
 
   /**
