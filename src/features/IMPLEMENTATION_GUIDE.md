@@ -197,10 +197,25 @@ export class YourEntityRepository extends FirestoreRepository<YourEntity> {
 Create `src/features/your-feature/services/your-entity.service.ts`:
 
 ```typescript
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { YourEntityRepository } from '../repositories/your-entity.repository';
 import { YourEntity } from '../domain/your-entity';
 import { FirestoreUnitOfWork } from '@/infrastructure';
+import { DomainError } from '@/common/errors';
+
+/**
+ * Domain error for when entity is not found
+ */
+export class YourEntityNotFoundError extends DomainError {
+  constructor(id: string) {
+    super(
+      `Entity ${id} not found`,
+      'ENTITY_NOT_FOUND',
+      404,
+      { entityId: id }
+    );
+  }
+}
 
 /**
  * Creates DTO for input validation
@@ -241,12 +256,15 @@ export class YourEntityService {
 
   /**
    * Get by ID
+   * 
+   * Throws YourEntityNotFoundError if entity doesn't exist.
+   * The GlobalExceptionFilter will convert this to HTTP 404.
    */
   async getById(id: string): Promise<YourEntity> {
     const entity = await this.repository.findById(id);
 
     if (!entity) {
-      throw new NotFoundException(`Entity ${id} not found`);
+      throw new YourEntityNotFoundError(id);
     }
 
     return entity;
@@ -278,7 +296,8 @@ export class YourEntityService {
 - Single responsibility: business logic
 - Use repository for data access
 - Use Unit of Work for multi-entity operations
-- Validate input, throw appropriate errors
+- Throw DomainError for business logic failures (prevents HTTP concerns leaking into business logic)
+- Throw HttpException for input validation in controllers only
 - Return domain entities, not DTOs
 
 ---
