@@ -63,6 +63,9 @@ const provider = Env.separationProvider; // 'poyo'
 Supported providers:
 - `'poyo'` - PoYo AI audio separation service
 
+When the provider is PoYo, configuration is validated at startup (fails fast if
+`POYO_API_KEY` is missing).
+
 #### `poyoApiKey: string`
 
 API key for PoYo stem separation service. Required when provider is PoYo.
@@ -75,10 +78,10 @@ Environment variable: `POYO_API_KEY`
 
 #### `poyoApiBaseUrl: string`
 
-Base URL for PoYo API. Default: `'https://app.poyoclub.com'`
+Base URL for PoYo API. Default: `'https://api.poyo.ai'`
 
 ```typescript
-const baseUrl = Env.poyoApiBaseUrl; // 'https://app.poyoclub.com'
+const baseUrl = Env.poyoApiBaseUrl; // 'https://api.poyo.ai'
 ```
 
 Environment variable: `POYO_API_BASE_URL`

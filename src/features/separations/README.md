@@ -1,6 +1,6 @@
 # Stem Separations
 
-Submit stem separation tasks for songs via a provider-agnostic interface. The controller exposes `POST /songs/:songId/separations` and returns task metadata while the provider performs the work asynchronously. The audio URL is automatically extracted from the song's `rawSongInfo`.
+Submit stem separation tasks for songs via a provider-agnostic interface. The controller exposes `POST /songs/:songId/separations` to submit work and `GET /songs/:songId/separations/status` to refresh task status while persisting stems into `separatedSongInfo.data`. The audio URL is automatically extracted from the song's `rawSongInfo`.
 
 ## Request
 
@@ -31,11 +31,45 @@ The song must exist and belong to the authenticated user.
 
 The exact response format depends on the provider implementation.
 
+## Refresh Status
+
+- **URL**: `GET /songs/:songId/separations/status`
+- **Path Params**: `songId` (string, required)
+- **Query Params**:
+  - `taskId` (string, required): Task identifier returned by the provider
+  - `provider` (string, optional): Overrides the default provider
+- **Auth**: Firebase bearer token (required in production)
+
+`202 Accepted` is returned when the task is still running; `200 OK` when finished or failed. Response example when finished:
+
+```json
+{
+  "success": true,
+  "data": {
+    "taskId": "xxxx-xxxx-xxxx",
+    "status": "finished",
+    "createdTime": "2026-02-28T00:00:00Z",
+    "provider": "poyo",
+    "stems": {
+      "bass": "https://...",
+      "drums": "https://...",
+      "piano": "https://...",
+      "guitar": "https://...",
+      "vocals": "https://...",
+      "other": "https://..."
+    }
+  }
+}
+```
+
+Stems are parsed from PoYo's `vocal_removal` JSON payload and stored without overwriting existing data while the task is still pending.
+
 **Error Responses**:
 - `404 Not Found` (`SONG_NOT_FOUND`) - Song doesn't exist or doesn't belong to the user
 - `409 Conflict` (`SEPARATION_CONFLICT`) - Separation already exists for this audio
-- `502 Bad Gateway` (`SEPARATION_PROVIDER_ERROR`) - Provider returned an error
+- `502 Bad Gateway` (`SEPARATION_PROVIDER_ERROR`) - Provider returned an error or inconsistent payload
 - `503 Service Unavailable` (`SEPARATION_PROVIDER_UNAVAILABLE`) - Provider is temporarily unavailable
+- `404 Not Found` (`SEPARATION_TASK_NOT_FOUND`) - Provider cannot find the task
 
 All error responses follow this format:
 ```json
@@ -53,10 +87,11 @@ All error responses follow this format:
 
 ## Configuration
 
-- `POYO_API_KEY` (required): PoYo API authentication key
+- `SEPARATION_PROVIDER` (default: `poyo`): Separation provider to use
+- `POYO_API_KEY` (required when using PoYo): PoYo API authentication key
 - `POYO_API_BASE_URL` (default: `https://api.poyo.ai`): PoYo API base URL
 
-Configuration is validated at startup; missing API key prevents boot.
+Configuration is validated at startup; missing API key prevents boot when PoYo is selected.
 
 ## Architecture
 
