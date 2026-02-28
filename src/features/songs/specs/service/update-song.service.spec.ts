@@ -5,12 +5,9 @@ import { FirestoreProvider } from '../../../../infrastructure/database/firestore
 import { FirebaseAdminProvider } from '../../../../auth/firebase-admin.provider';
 import { AudioConversionService } from '../../../audio/audio-conversion.service';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 describe('SongsService - updateSong', () => {
   let service: SongsService;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockFirestore: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockBucket: any;
 
   const userId = 'test-user-id';
@@ -28,17 +25,21 @@ describe('SongsService - updateSong', () => {
   };
 
   beforeEach(async () => {
-    // Mock Firestore
-    mockFirestore = {
+    // Create nested mock structure
+    const mockDocRef = {
+      get: jest.fn(),
+      update: jest.fn(),
       collection: jest.fn().mockReturnValue({
         doc: jest.fn().mockReturnValue({
-          collection: jest.fn().mockReturnValue({
-            doc: jest.fn().mockReturnValue({
-              get: jest.fn(),
-              update: jest.fn(),
-            }),
-          }),
+          get: jest.fn(),
+          update: jest.fn(),
         }),
+      }),
+    };
+
+    mockFirestore = {
+      collection: jest.fn().mockReturnValue({
+        doc: jest.fn().mockReturnValue(mockDocRef),
       }),
     };
 
@@ -56,7 +57,6 @@ describe('SongsService - updateSong', () => {
       getBucket: jest.fn().mockReturnValue(mockBucket),
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mockAudioConversionService: any = {
       getFileFormat: jest.fn(),
       isSupportedFormat: jest.fn(),
@@ -71,6 +71,7 @@ describe('SongsService - updateSong', () => {
         { provide: FirebaseAdminProvider, useValue: mockFirebaseAdminProvider },
         {
           provide: AudioConversionService,
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           useValue: mockAudioConversionService,
         },
       ],
@@ -82,14 +83,14 @@ describe('SongsService - updateSong', () => {
   describe('updateSong - Success Cases', () => {
     it('should update title only', async () => {
       const updateData = { title: 'New Title' };
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
       const songDocRef = mockFirestore
-        .collection('users')
-        .doc(userId)
-        .collection('songs')
-        .doc(songId);
+        .collection('users') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(userId) // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .collection('songs') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(songId); // eslint-disable-line @typescript-eslint/no-unsafe-member-access
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
       songDocRef.get.mockResolvedValue({
         exists: true,
         data: () => existingSong,
@@ -111,14 +112,14 @@ describe('SongsService - updateSong', () => {
 
     it('should update author only', async () => {
       const updateData = { author: 'New Author' };
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
       const songDocRef = mockFirestore
-        .collection('users')
-        .doc(userId)
-        .collection('songs')
-        .doc(songId);
+        .collection('users') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(userId) // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .collection('songs') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(songId); // eslint-disable-line @typescript-eslint/no-unsafe-member-access
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
       songDocRef.get.mockResolvedValue({
         exists: true,
         data: () => existingSong,
@@ -140,14 +141,14 @@ describe('SongsService - updateSong', () => {
 
     it('should update both title and author', async () => {
       const updateData = { title: 'New Title', author: 'New Author' };
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
       const songDocRef = mockFirestore
-        .collection('users')
-        .doc(userId)
-        .collection('songs')
-        .doc(songId);
+        .collection('users') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(userId) // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .collection('songs') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(songId); // eslint-disable-line @typescript-eslint/no-unsafe-member-access
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
       songDocRef.get.mockResolvedValue({
         exists: true,
         data: () => existingSong,
@@ -175,14 +176,14 @@ describe('SongsService - updateSong', () => {
         rawSongInfo: { urlInfo: { value: 'hacked-url' } },
       };
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
       const songDocRef = mockFirestore
-        .collection('users')
-        .doc(userId)
-        .collection('songs')
-        .doc(songId);
+        .collection('users') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(userId) // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .collection('songs') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(songId); // eslint-disable-line @typescript-eslint/no-unsafe-member-access
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
       songDocRef.get.mockResolvedValue({
         exists: true,
         data: () => existingSong,
@@ -204,7 +205,6 @@ describe('SongsService - updateSong', () => {
     });
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
   describe('updateSong - Validation Errors', () => {
     it('should throw error when title is empty string', async () => {
       const updateData = { title: '' };
@@ -240,14 +240,14 @@ describe('SongsService - updateSong', () => {
 
     it('should throw error when no fields provided', async () => {
       const updateData = {};
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
       const songDocRef = mockFirestore
-        .collection('users')
-        .doc(userId)
-        .collection('songs')
-        .doc(songId);
+        .collection('users') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(userId) // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .collection('songs') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(songId); // eslint-disable-line @typescript-eslint/no-unsafe-member-access
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
       songDocRef.get.mockResolvedValue({
         exists: true,
         data: () => existingSong,
@@ -262,14 +262,14 @@ describe('SongsService - updateSong', () => {
 
     it('should throw error when only file field provided', async () => {
       const updateData = { file: 'some-file' };
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
       const songDocRef = mockFirestore
-        .collection('users')
-        .doc(userId)
-        .collection('songs')
-        .doc(songId);
+        .collection('users') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(userId) // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .collection('songs') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(songId); // eslint-disable-line @typescript-eslint/no-unsafe-member-access
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
       songDocRef.get.mockResolvedValue({
         exists: true,
         data: () => existingSong,
@@ -286,14 +286,14 @@ describe('SongsService - updateSong', () => {
   describe('updateSong - Song Not Found', () => {
     it('should throw NotFoundException when song does not exist', async () => {
       const updateData = { title: 'New Title' };
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
       const songDocRef = mockFirestore
-        .collection('users')
-        .doc(userId)
-        .collection('songs')
-        .doc(songId);
+        .collection('users') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(userId) // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .collection('songs') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(songId); // eslint-disable-line @typescript-eslint/no-unsafe-member-access
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
       songDocRef.get.mockResolvedValue({
         exists: false,
       });
@@ -312,14 +312,14 @@ describe('SongsService - updateSong', () => {
   describe('updateSong - Database Errors', () => {
     it('should throw InternalServerError on Firestore get failure', async () => {
       const updateData = { title: 'New Title' };
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
       const songDocRef = mockFirestore
-        .collection('users')
-        .doc(userId)
-        .collection('songs')
-        .doc(songId);
+        .collection('users') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(userId) // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .collection('songs') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(songId); // eslint-disable-line @typescript-eslint/no-unsafe-member-access
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
       songDocRef.get.mockRejectedValue(new Error('Database connection failed'));
 
       await expect(
@@ -334,20 +334,20 @@ describe('SongsService - updateSong', () => {
 
     it('should throw InternalServerError on Firestore update failure', async () => {
       const updateData = { title: 'New Title' };
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
       const songDocRef = mockFirestore
-        .collection('users')
-        .doc(userId)
-        .collection('songs')
-        .doc(songId);
+        .collection('users') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(userId) // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .collection('songs') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(songId); // eslint-disable-line @typescript-eslint/no-unsafe-member-access
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
       songDocRef.get.mockResolvedValue({
         exists: true,
         data: () => existingSong,
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
       songDocRef.update.mockRejectedValue(new Error('Write failed'));
 
       await expect(
@@ -364,14 +364,14 @@ describe('SongsService - updateSong', () => {
   describe('updateSong - Validation Rules', () => {
     it('should accept valid title with min length (1 char)', async () => {
       const updateData = { title: 'A' };
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
       const songDocRef = mockFirestore
-        .collection('users')
-        .doc(userId)
-        .collection('songs')
-        .doc(songId);
+        .collection('users') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(userId) // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .collection('songs') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(songId); // eslint-disable-line @typescript-eslint/no-unsafe-member-access
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
       songDocRef.get.mockResolvedValue({
         exists: true,
         data: () => existingSong,
@@ -387,14 +387,14 @@ describe('SongsService - updateSong', () => {
     it('should accept valid title with max length (255 chars)', async () => {
       const longTitle = 'a'.repeat(255);
       const updateData = { title: longTitle };
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
       const songDocRef = mockFirestore
-        .collection('users')
-        .doc(userId)
-        .collection('songs')
-        .doc(songId);
+        .collection('users') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(userId) // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .collection('songs') // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+        .doc(songId); // eslint-disable-line @typescript-eslint/no-unsafe-member-access
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
       songDocRef.get.mockResolvedValue({
         exists: true,
         data: () => existingSong,
