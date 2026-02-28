@@ -108,4 +108,42 @@ describe('Env', () => {
       expect(Env.corsOrigin).toEqual(['http://localhost:3000']);
     });
   });
+
+  describe('separationProvider', () => {
+    it('should default to poyo when not set', () => {
+      delete process.env.SEPARATION_PROVIDER;
+      expect(Env.separationProvider).toBe('poyo');
+    });
+
+    it('should return lowercased provider value', () => {
+      process.env.SEPARATION_PROVIDER = 'PoYo';
+      expect(Env.separationProvider).toBe('poyo');
+    });
+  });
+
+  describe('poyoApiKey', () => {
+    it('should return configured API key', () => {
+      process.env.POYO_API_KEY = 'test-key';
+      expect(Env.poyoApiKey).toBe('test-key');
+    });
+
+    it('should throw when API key missing', () => {
+      delete process.env.POYO_API_KEY;
+      expect(() => Env.poyoApiKey).toThrow(
+        'POYO_API_KEY environment variable is required for PoYo separation provider',
+      );
+    });
+  });
+
+  describe('poyoApiBaseUrl', () => {
+    it('should return default base url when not set', () => {
+      delete process.env.POYO_API_BASE_URL;
+      expect(Env.poyoApiBaseUrl).toBe('https://app.poyoclub.com');
+    });
+
+    it('should return configured base url', () => {
+      process.env.POYO_API_BASE_URL = 'https://poyo.example.com';
+      expect(Env.poyoApiBaseUrl).toBe('https://poyo.example.com');
+    });
+  });
 });

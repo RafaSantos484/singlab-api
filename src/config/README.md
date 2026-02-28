@@ -52,6 +52,39 @@ bucket resolution logic. Use the format `<project-id>.appspot.com`.
 FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
 ```
 
+#### `separationProvider: string`
+
+Selected stem separation provider for audio processing. Default: `'poyo'`
+
+```typescript
+const provider = Env.separationProvider; // 'poyo'
+```
+
+Supported providers:
+- `'poyo'` - PoYo AI audio separation service
+
+#### `poyoApiKey: string`
+
+API key for PoYo stem separation service. Required when provider is PoYo.
+
+```typescript
+const apiKey = Env.poyoApiKey; // throws if not configured
+```
+
+Environment variable: `POYO_API_KEY`
+
+#### `poyoApiBaseUrl: string`
+
+Base URL for PoYo API. Default: `'https://app.poyoclub.com'`
+
+```typescript
+const baseUrl = Env.poyoApiBaseUrl; // 'https://app.poyoclub.com'
+```
+
+Environment variable: `POYO_API_BASE_URL`
+
+Must use HTTPS protocol.
+
 ### Usage
 
 ```typescript
