@@ -770,9 +770,9 @@ export class SongsService {
     songId: string,
     provider: string,
     data: unknown,
+    song: Song | null = null,
   ): Promise<null> {
-    const song = await this.getSongById(userId, songId);
-
+    song ??= await this.getSongById(userId, songId);
     if (!song) {
       this.logger.warn(
         `Attempted to update separation info for non-existent song ${songId} and user ${userId}`,
