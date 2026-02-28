@@ -303,9 +303,26 @@ Before committing, ensure:
 4. Register module in `AppModule` imports
 
 ### Error Handling
-Use `HttpException` from `@nestjs/common`:
+
+Use **domain-level errors** for business logic failures. Define custom error classes extending `DomainError` in `src/common/errors/domain-error.ts`. The global exception filter automatically translates domain errors to HTTP responses with proper status codes.
+
+**Domain errors** (preferred for domain-level failures):
 ```typescript
-throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+import { SongNotFoundError, SeparationConflictError } from '@/common/errors';
+
+if (!song) {
+  throw new SongNotFoundError(`Song with ID ${songId} not found`, { songId });
+}
+if (song.separatedSongInfo) {
+  throw new SeparationConflictError('Song already has a separation', { songId });
+}
+```
+
+**HttpException** (for low-level validation/NestJS errors):
+```typescript
+import { HttpException, HttpStatus } from '@nestjs/common';
+
+if (!file) throw new HttpException('File is required', HttpStatus.BAD_REQUEST);
 ```
 
 ### Input Validation
@@ -342,7 +359,7 @@ Entry point: `dist/main.js` (Firebase Function)
 5. Use `Env` class for environment vars - never `process.env` directly
 6. Firebase app instance cached in `main.ts` - don't recreate
 7. Respect `CORS_ORIGIN` configuration
-8. Use `HttpException` for errors - consistent error handling
+8. Use `DomainError` for business logic failures - domain errors abstract HTTP concerns
 9. Test isolation - tests independent, no order dependency
 10. Use NestJS logger - no `console.log` in production
 11. Keep docs in sync - update related docs when modifying code
