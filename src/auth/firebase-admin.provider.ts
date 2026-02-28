@@ -29,7 +29,6 @@ export class FirebaseAdminProvider {
           FirebaseAdminProvider.logger.log(
             `Initializing Firebase Admin with credentials.json`,
           );
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           const credentials: admin.ServiceAccount = JSON.parse(
             readFileSync(credentialsPath, 'utf-8'),
           );

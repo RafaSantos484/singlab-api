@@ -118,7 +118,6 @@ export abstract class FirestoreRepository<
    */
   async save(entity: TEntity & { id?: TId }): Promise<TEntity> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const persistence = this.mapper.toPersistence(entity);
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       const docId = (persistence.id || this.generateId()) as TId;
@@ -127,7 +126,6 @@ export abstract class FirestoreRepository<
         .collection(this.collectionName)
         .doc(String(docId))
         .set(
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
           {
             ...persistence,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -165,7 +163,7 @@ export abstract class FirestoreRepository<
 
         for (let j = start; j < end; j++) {
           const entity = entities[j];
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
           const persistence = this.mapper.toPersistence(entity);
           // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
           const docId = (persistence.id || this.generateId()) as TId;
