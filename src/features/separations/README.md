@@ -1,6 +1,6 @@
 # Stem Separations
 
-Submit stem separation tasks for songs via a provider-agnostic interface. The controller exposes `POST /songs/:songId/separations` to submit work and `GET /songs/:songId/separations/status` to refresh task status while persisting stems into `separatedSongInfo.data`. The audio URL is automatically extracted from the song's `rawSongInfo`.
+Submit stem separation tasks for songs via a provider-agnostic interface. The controller exposes `POST /songs/:songId/separations` to submit work and `GET /songs/:songId/separations/status` to refresh task status while persisting provider responses into `separatedSongInfo.providerData` and ready-to-use stems into `separatedSongInfo.stems`. The audio URL is generated on-demand from the stored `rawSongInfo.path` using a signed URL.
 
 ## Request
 
@@ -12,7 +12,7 @@ Submit stem separation tasks for songs via a provider-agnostic interface. The co
 - **Body**: none
 - **Auth**: Firebase bearer token (required in production).
 
-The `audioUrl` and `title` are automatically obtained from the song document (`rawSongInfo.urlInfo.value` and `title`).
+The `audioUrl` and `title` are automatically obtained from the song document (signed URL from `rawSongInfo.path` and the stored `title`).
 The separation model and output type are hardcoded in the provider implementation (currently `base` model and `general` output type for PoYo).
 The song must exist and belong to the authenticated user.
 
@@ -49,19 +49,22 @@ The backend derives the task ID from the stored `separatedSongInfo` and short-ci
     "status": "finished",
     "createdTime": "2026-02-28T00:00:00Z",
     "provider": "poyo",
+    "providerData": {
+      "task_id": "xxxx-xxxx-xxxx",
+      "status": "finished"
+    },
     "stems": {
-      "bass": "https://...",
-      "drums": "https://...",
-      "piano": "https://...",
-      "guitar": "https://...",
-      "vocals": "https://...",
-      "other": "https://..."
+      "uploadedAt": "2026-02-28T00:00:00Z",
+      "paths": {
+        "bass": "users/abc123/songs/xyz/stems/bass.mp3",
+        "vocals": "users/abc123/songs/xyz/stems/vocals.mp3"
+      }
     }
   }
 }
 ```
 
-Stems are parsed from PoYo's `vocal_removal` JSON payload and stored without overwriting existing data while the task is still pending.
+`providerData` stores the provider-specific response (raw payload), while `stems` stores the normalized storage metadata with upload timestamp and storage paths. Signed URLs should be generated on demand from these paths. Stems are parsed from PoYo's `vocal_removal` JSON payload and stored without overwriting existing data while the task is still pending.
 
 **Error Responses**:
 - `404 Not Found` (`SONG_NOT_FOUND`) - Song doesn't exist or doesn't belong to the user
