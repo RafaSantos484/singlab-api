@@ -93,10 +93,10 @@ export class Env {
    * @throws Error if not configured
    */
   static get firebaseStorageBucket(): string {
-    const bucket = process.env.FIREBASE_STORAGE_BUCKET?.trim();
+    const bucket = process.env.APP_FIREBASE_STORAGE_BUCKET?.trim();
     if (!bucket) {
       throw new Error(
-        'FIREBASE_STORAGE_BUCKET environment variable is required',
+        'APP_FIREBASE_STORAGE_BUCKET environment variable is required',
       );
     }
     return bucket;

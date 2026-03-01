@@ -113,7 +113,7 @@ export class FirebaseAdminProvider {
 
 ```env
 # .env.dev or .env.production
-FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
+APP_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
 ```
 
 Place `credentials.json` in the project root directory (not committed to version control).
@@ -145,11 +145,11 @@ For different environments (dev, staging, production), use different Firebase pr
 ```env
 # .env.dev (local development)
 NODE_ENV=dev
-FIREBASE_STORAGE_BUCKET=dev-project.appspot.com
+APP_FIREBASE_STORAGE_BUCKET=dev-project.appspot.com
 
 # .env.production (production)
 NODE_ENV=production
-FIREBASE_STORAGE_BUCKET=prod-project.appspot.com
+APP_FIREBASE_STORAGE_BUCKET=prod-project.appspot.com
 ```
 
 Each environment should have its own `credentials.json` with the appropriate service account.

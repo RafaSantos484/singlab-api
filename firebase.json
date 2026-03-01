@@ -11,7 +11,8 @@
         "*.local"
       ],
       "predeploy": ["npm run build"],
-      "source": "."
+      "source": ".",
+      "runtime": "nodejs22"
     }
   ],
   "emulators": {

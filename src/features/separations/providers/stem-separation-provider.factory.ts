@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PoyoStemSeparationProvider } from './poyo/poyo-separation.provider';
 import type { StemSeparationProvider } from './stem-separation-provider.interface';
-import { SeparationConfigurationError } from 'src/common/errors';
+import { SeparationConfigurationError } from '../../../common/errors';
 
 /**
  * Factory for resolving stem separation provider instances.

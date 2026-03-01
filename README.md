@@ -64,7 +64,7 @@ Edit `.env.dev` with required settings:
 PORT=5001
 CORS_ORIGIN=*
 SKIP_AUTH=true
-FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
+APP_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
 
 # For stem separation (optional in dev, required in production)
 SEPARATION_PROVIDER=poyo
@@ -177,7 +177,7 @@ The API uses a type-safe `Env` class in `src/config/env.config.ts`.
 | `CORS_ORIGIN` | `string` or `array` | `['http://localhost:3000']` | Allowed CORS origins |
 | `SKIP_AUTH` | `boolean` | `false` | Skip authentication (dev only) |
 | `NODE_ENV` | `string` | - | Environment name (dev, production, test) |
-| `FIREBASE_STORAGE_BUCKET` | `string` | - | Firebase Cloud Storage bucket name |
+| `APP_FIREBASE_STORAGE_BUCKET` | `string` | - | Firebase Cloud Storage bucket name |
 
 Example usage:
 
