@@ -54,7 +54,7 @@ export class SongsController {
    * @param req - Request with authenticated user
    * @param file - Uploaded file
    * @param metadataStr - JSON string with title and author
-   * @returns Song object with ID, metadata, rawSongInfo (urlInfo and uploadedAt)
+   * @returns Song object with ID, metadata, rawSongInfo containing storage path
    * @throws BadRequestException if validation fails
    * @throws HttpException if upload/conversion fails
    */
@@ -133,7 +133,7 @@ export class SongsController {
    *
    * @param req - Request with authenticated user
    * @param songId - Song document ID
-   * @returns Song object with metadata and storage URL
+   * @returns Song object with metadata and raw storage path
    * @throws NotFoundException if song not found
    */
   @Get(':songId')
@@ -222,14 +222,11 @@ export class SongsController {
 
   /**
    * Retrieves a fresh URL for the raw song file.
-   * Automatically refreshes the URL if expired or near expiration.
-   *
-   * Returns URL valid for 7 days. If existing URL expires in less than
-   * 24 hours, generates a new one and updates Firestore.
+   * Generates a new signed URL on demand without storing expiration metadata.
    *
    * @param req - Request with authenticated user
    * @param songId - Song document ID
-   * @returns Object with value (URL), expiresAt (ISO 8601), and refreshed flag
+   * @returns Object with value (signed URL) and path
    * @throws NotFoundException if song not found
    */
   @Get(':songId/raw/url')
