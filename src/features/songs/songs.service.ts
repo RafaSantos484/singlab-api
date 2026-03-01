@@ -19,34 +19,46 @@ import { DocumentReference, DocumentSnapshot } from 'firebase-admin/firestore';
 export const SIGNED_URL_EXPIRY_DAYS = 7;
 export const SIGNED_URL_EXPIRY_MS =
   SIGNED_URL_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
-// Refresh URL if less than 1 day remaining (safety margin)
-export const REFRESH_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 
-/**
- * Interface for raw song storage metadata.
- * Stores signed URL info with expiration for client caching.
- */
-export interface RawSongUrlInfo {
-  value: string;
-  expiresAt: string;
-}
+const generateSignedUrlForPath = async (
+  bucket: Bucket,
+  path: string,
+): Promise<string> => {
+  const file = bucket.file(path);
+  const [url] = await file.getSignedUrl({
+    version: 'v4',
+    action: 'read',
+    expires: Date.now() + SIGNED_URL_EXPIRY_MS,
+  });
+
+  return url;
+};
 
 /**
  * Raw song information stored in Firestore.
- * Contains the audio file URL and upload timestamp.
+ * Contains only the storage path. URLs are generated dynamically.
  */
 export interface RawSongInfo {
-  urlInfo: RawSongUrlInfo;
+  path: string;
   uploadedAt: string;
 }
 
 /**
+ * Stems storage metadata with upload timestamp and file paths.
+ */
+export interface SeparatedSongStems {
+  uploadedAt: string;
+  paths: Record<string, string>;
+}
+
+/**
  * Separated song information stored in Firestore.
- * Contains provider name and provider-specific separation data.
+ * Contains provider name, provider-specific separation data, and stem paths.
  */
 export interface SeparatedSongInfo {
   provider: string;
-  data: unknown;
+  providerData: unknown;
+  stems: SeparatedSongStems | null;
 }
 
 type SongObject = {
@@ -59,18 +71,18 @@ type SongObject = {
 /**
  * Song entity with type-safe access to properties.
  *
- * Represents a fully validated song document from Firestore with support for
- * automatic URL refresh when the raw song's signed URL is near expiration.
- * All properties are immutable via private attributes and getter methods.
- *
- * Provides method to manage raw song URLs with automatic refresh logic.
+ * Represents a fully validated song document from Firestore. Raw storage
+ * paths are persisted, while signed URLs are generated on demand when the
+ * caller requests access. All properties are immutable via private attributes
+ * and getter methods, with separation metadata updated through explicit
+ * methods.
  */
 export class Song {
   private readonly _ref: DocumentReference;
   private readonly _title: string;
   private readonly _author: string;
   private readonly _rawSongInfo: RawSongInfo;
-  private readonly _separatedSongInfo: SeparatedSongInfo | null;
+  private _separatedSongInfo: SeparatedSongInfo | null;
 
   constructor(
     ref: DocumentReference,
@@ -130,62 +142,14 @@ export class Song {
     };
   }
 
-  /**
-   * Gets raw song URL with automatic refresh if expired or near expiration.
-   * Checks if URL needs refresh based on expiration time and updates
-   * Firestore if necessary.
-   *
-   * @param songDocRef - Firestore document reference for this song
-   * @param bucket - Cloud Storage bucket instance
-   * @param userId - User ID (for logging)
-   * @param songId - Song ID (for logging and path construction)
-   * @param logger - Logger instance for debug/info output
-   * @returns URL info with refresh status
-   * @throws Error if URL generation or Firestore update fails
-   */
-  async getRawSongUrlWithRefresh(bucket: Bucket): Promise<{
-    value: string;
-    expiresAt: string;
-    refreshed: boolean;
-  }> {
-    const { value, expiresAt } = this._rawSongInfo.urlInfo;
-
-    // Check if URL needs refresh (expired or within safety threshold)
-    const expirationTime = new Date(expiresAt).getTime();
-    const now = Date.now();
-    const needsRefresh = expirationTime - now < REFRESH_THRESHOLD_MS;
-
-    if (!needsRefresh) {
-      // URL still valid, return as-is
-      return { value, expiresAt, refreshed: false };
-    }
-
-    // URL needs refresh - generate new signed URL
-    const [userId, songId] = [this.userId, this.songId];
-    const storagePath = `users/${userId}/songs/${songId}/raw.mp3`;
-
-    const file = bucket.file(storagePath);
-    const [newSignedUrl] = await file.getSignedUrl({
-      version: 'v4',
-      action: 'read',
-      expires: Date.now() + SIGNED_URL_EXPIRY_MS,
-    });
-
-    const newUrlExpiresAt = new Date(
-      Date.now() + SIGNED_URL_EXPIRY_MS,
-    ).toISOString();
-
-    // Update Firestore with new URL
-    await this._ref.update({
-      'rawSongInfo.urlInfo.value': newSignedUrl,
-      'rawSongInfo.urlInfo.expiresAt': newUrlExpiresAt,
-    });
-
-    return {
-      value: newSignedUrl,
-      expiresAt: newUrlExpiresAt,
-      refreshed: true,
-    };
+  async getRawSongUrl(
+    bucket: Bucket,
+  ): Promise<{ value: string; path: string }> {
+    const value = await generateSignedUrlForPath(
+      bucket,
+      this._rawSongInfo.path,
+    );
+    return { value, path: this._rawSongInfo.path };
   }
 
   async updateSongMetadata(title?: string, author?: string): Promise<void> {
@@ -206,16 +170,23 @@ export class Song {
     await this._ref.update(updateData);
   }
 
-  async updateSeparatedSongInfo(
-    provider: string,
-    data: unknown,
-  ): Promise<void> {
+  async updateSeparatedSongInfo(update: {
+    provider: string;
+    providerData?: unknown;
+    stems?: SeparatedSongStems | null;
+  }): Promise<void> {
+    const separatedSongInfo: SeparatedSongInfo = {
+      provider: update.provider,
+      providerData:
+        update.providerData ?? this._separatedSongInfo?.providerData ?? null,
+      stems: update.stems ?? this._separatedSongInfo?.stems ?? null,
+    };
+
     await this._ref.update({
-      separatedSongInfo: {
-        provider,
-        data,
-      },
+      separatedSongInfo,
     });
+
+    this._separatedSongInfo = separatedSongInfo;
   }
 }
 
@@ -226,16 +197,15 @@ export class Song {
  * - Audio conversion
  * - Storage upload
  * - Firestore persistence
- * - URL refresh management (automatic renewal when expiring)
+ * - On-demand signed URL generation for stored paths
  *
  * Uses two-phase approach for uploads:
  * 1. Convert audio and upload to Storage (can be rolled back by deletion)
  * 2. Persist metadata to Firestore
  *
  * URL Management Strategy:
- * - Generates signed URLs valid for 7 days
- * - Automatically refreshes URLs when <24h remaining (via refreshRawSongUrl)
- * - Stores expiration time for client-side caching optimization
+ * - Generates signed URLs valid for 7 days based on stored paths
+ * - Does not persist expiration metadata; clients request fresh URLs when needed
  */
 @Injectable()
 export class SongsService {
@@ -300,18 +270,9 @@ export class SongsService {
         storagePath,
       );
 
-      // 5. Generate signed URL
-      const signedUrl = await this.generateSignedUrl(uploadedPath);
-      const urlExpiresAt = new Date(
-        Date.now() + SIGNED_URL_EXPIRY_MS,
-      ).toISOString();
-
-      // 6. Persist metadata to Firestore
+      // 5. Persist metadata to Firestore (store only the path)
       const rawSongInfo: RawSongInfo = {
-        urlInfo: {
-          value: signedUrl,
-          expiresAt: urlExpiresAt,
-        },
+        path: uploadedPath,
         uploadedAt: new Date().toISOString(),
       };
 
@@ -416,6 +377,21 @@ export class SongsService {
     return `users/${userId}/songs/${songId}/raw.mp3`;
   }
 
+  async createSignedUrlForPath(path: string): Promise<string> {
+    try {
+      return await generateSignedUrlForPath(this.bucket, path);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Failed to generate signed URL for path ${path}: ${errorMsg}`,
+      );
+      throw new HttpException(
+        'Failed to generate song URL',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
   /**
    * Converts audio and uploads to Cloud Storage.
    *
@@ -455,30 +431,6 @@ export class SongsService {
   }
 
   /**
-   * Generates a signed URL for accessing the uploaded file.
-   * URL valid for 7 days.
-   *
-   * @param storagePath - Path of file in storage
-   * @returns Signed URL
-   * @throws Error if URL generation fails
-   */
-  private async generateSignedUrl(storagePath: string): Promise<string> {
-    try {
-      const file = this.bucket.file(storagePath);
-      const [url] = await file.getSignedUrl({
-        version: 'v4',
-        action: 'read',
-        expires: Date.now() + SIGNED_URL_EXPIRY_MS,
-      });
-      return url;
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Failed to generate signed URL: ${errorMsg}`);
-      throw new Error(`Failed to generate storage URL: ${errorMsg}`);
-    }
-  }
-
-  /**
    * Persists song metadata to Firestore.
    * On failure, does NOT attempt cleanup (caller responsibility).
    *
@@ -496,13 +448,7 @@ export class SongsService {
       const songData = {
         title: metadata.title,
         author: metadata.author,
-        rawSongInfo: {
-          urlInfo: {
-            value: rawSongInfo.urlInfo.value,
-            expiresAt: rawSongInfo.urlInfo.expiresAt,
-          },
-          uploadedAt: rawSongInfo.uploadedAt,
-        },
+        rawSongInfo,
         separatedSongInfo: null,
       };
 
@@ -554,9 +500,8 @@ export class SongsService {
    *
    * Validates:
    * - title, author are strings
-   * - rawSongInfo exists with urlInfo and uploadedAt
-   * - urlInfo contains value and expiresAt strings
-   * - separatedSongInfo (optional) with provider and data
+   * - rawSongInfo exists with path string
+   * - separatedSongInfo (optional) with provider, providerData, and stems
    *
    * @param data - Raw Firestore document data
    * @returns Validated Song instance or null if validation fails
@@ -567,13 +512,51 @@ export class SongsService {
       return null;
     }
 
+    if (!data.rawSongInfo?.path || typeof data.rawSongInfo.path !== 'string') {
+      return null;
+    }
+
+    const separatedSongInfo = this.normalizeSeparatedSongInfo(
+      data.separatedSongInfo,
+    );
+
     return new Song(
       snapshot.ref,
       data.title,
       data.author,
       data.rawSongInfo,
-      data.separatedSongInfo,
+      separatedSongInfo,
     );
+  }
+
+  private normalizeSeparatedSongInfo(
+    separatedSongInfo: (SeparatedSongInfo & { data?: unknown }) | null,
+  ): SeparatedSongInfo | null {
+    if (!separatedSongInfo) {
+      return null;
+    }
+
+    const providerData =
+      separatedSongInfo.providerData ?? separatedSongInfo.data ?? null;
+
+    const hasValidStemsStructure =
+      separatedSongInfo.stems !== null &&
+      typeof separatedSongInfo.stems === 'object' &&
+      typeof separatedSongInfo.stems?.uploadedAt === 'string' &&
+      typeof separatedSongInfo.stems?.paths === 'object';
+
+    const stems = hasValidStemsStructure
+      ? {
+          uploadedAt: separatedSongInfo.stems?.uploadedAt as string,
+          paths: separatedSongInfo.stems?.paths as Record<string, string>,
+        }
+      : null;
+
+    return {
+      provider: separatedSongInfo.provider,
+      providerData,
+      stems,
+    };
   }
 
   /**
@@ -595,16 +578,9 @@ export class SongsService {
         .limit(limit)
         .get();
 
-      return snapshot.docs.map((doc) => {
-        const data = doc.data();
-        return new Song(
-          doc.ref,
-          data.title,
-          data.author,
-          data.rawSongInfo,
-          data.separatedSongInfo,
-        );
-      });
+      return snapshot.docs
+        .map((doc) => this.toSong(doc))
+        .filter((song): song is Song => song !== null);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to list songs for user ${userId}: ${errorMsg}`);
@@ -757,21 +733,21 @@ export class SongsService {
   }
 
   /**
-   * Refreshes raw song URL if expired or near expiration.
-   * Checks urlInfo.expiresAt and generates new signed URL if needed.
+   * Generates a signed URL for the stored raw song path.
+   * No expiration metadata is stored in Firestore; URLs are generated
+   * on-demand to reflect the current storage state.
    *
    * @param userId - User ID
    * @param songId - Song ID
-   * @returns Current or refreshed URL with expiration info
-   * @throws HttpException if song not found or refresh fails
+   * @returns Signed URL and storage path
+   * @throws HttpException if song not found or generation fails
    */
   async refreshRawSongUrl(
     userId: string,
     songId: string,
   ): Promise<{
     value: string;
-    expiresAt: string;
-    refreshed: boolean;
+    path: string;
   }> {
     const song = await this.getSongById(userId, songId);
 
@@ -783,7 +759,7 @@ export class SongsService {
     }
 
     try {
-      return await song.getRawSongUrlWithRefresh(this.bucket);
+      return await song.getRawSongUrl(this.bucket);
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
