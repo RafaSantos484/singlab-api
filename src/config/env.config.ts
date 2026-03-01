@@ -84,6 +84,53 @@ export class Env {
   }
 
   /**
+   * Firebase Cloud Storage bucket name.
+   *
+   * Required for uploading and storing files in Cloud Storage.
+   * Format: 'project-id.appspot.com'
+   *
+   * @returns Storage bucket name
+   * @throws Error if not configured
+   */
+  static get firebaseStorageBucket(): string {
+    const bucket = process.env.APP_FIREBASE_STORAGE_BUCKET?.trim();
+    if (!bucket) {
+      throw new Error(
+        'APP_FIREBASE_STORAGE_BUCKET environment variable is required',
+      );
+    }
+    return bucket;
+  }
+
+  /**
+   * PoYo API key for stem separation.
+   *
+   * Required when using PoYo separation provider.
+   *
+   * @returns API key string
+   * @throws Error if not configured
+   */
+  static get poyoApiKey(): string {
+    const apiKey = process.env.POYO_API_KEY?.trim();
+    if (!apiKey) {
+      throw new Error(
+        'POYO_API_KEY environment variable is required for PoYo separation provider',
+      );
+    }
+    return apiKey;
+  }
+
+  /**
+   * PoYo API base URL.
+   *
+   * @returns Base URL for PoYo API
+   * @default 'https://api.poyo.ai'
+   */
+  static get poyoApiBaseUrl(): string {
+    return process.env.POYO_API_BASE_URL?.trim() ?? 'https://api.poyo.ai';
+  }
+
+  /**
    * Converts string to boolean.
    *
    * @param value - Environment variable value
@@ -113,8 +160,6 @@ export class Env {
 
 // Load environment variables from .env.{NODE_ENV} file if NODE_ENV is set
 if (Env.nodeEnv) {
-  console.log(
-    `Loading environment variables from file: .env.${Env.nodeEnv}`,
-  );
+  console.log(`Loading environment variables from file: .env.${Env.nodeEnv}`);
   config({ path: `.env.${Env.nodeEnv}` });
 }

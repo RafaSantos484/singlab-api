@@ -1,162 +1,91 @@
 # GitHub Copilot Instructions
 
-## Project Overview
+## 🔥 Critical Rules (MUST ALWAYS FOLLOW)
 
-This is a **NestJS + Firebase Cloud Functions** production template for building TypeScript REST APIs. The project combines modern NestJS architecture with serverless Firebase deployment.
+1. **TypeScript strict mode** - Always enabled, never use `any`
+2. **Dependency Injection** - Never instantiate services with `new`, always inject
+3. **English only** - All code, comments, docs, commits must be in English
+4. **No commit scopes** - Use `feat:`, `fix:`, `chore:` only (no parentheses)
+5. **Explicit commit control** - Only commit when explicitly instructed in current message
+6. **Return types** - Always specify return types on all methods
+7. **Environment variables** - Use `Env.variableName`, never `process.env` directly
+8. **Firebase serverless** - App instance is cached in `main.ts`, never recreate
+9. **Atomic commits** - Prefer multiple small commits over single large commits
+10. **Documentation sync** - Update related docs when modifying code
 
-### Key Technologies
-- **Framework**: NestJS v11+ with Express adapter
-- **Deployment**: Firebase Cloud Functions v2 (HTTP triggers)
-- **Language**: TypeScript 5.7+
-- **Testing**: Jest with ts-jest
-- **Code Quality**: ESLint + Prettier + TypeScript strict mode
+## Project Context
 
-## Architecture & Structure
+**SingLab API**: NestJS + Firebase Cloud Functions backend for karaoke/singing app.
 
-### Core Application Flow
+**Stack**: NestJS v11+, TypeScript 5.7+, Firebase Functions v2, Jest, ESLint + Prettier
 
-1. **Entry Point** (`src/main.ts`):
-   - Creates Express app with middleware (CORS, JSON parser, body trimmer)
-   - Initializes NestJS with cached instance for serverless optimization
-   - Exports `api` Firebase Function handler
-   - Supports local development and Firebase Functions deployment
+**Key Paths**:
+- Entry: `src/main.ts` (Express + NestJS, cached for serverless)
+- Config: `src/config/env.config.ts` (static `Env` class)
+- Features: `src/features/` (feature modules pattern)
+- Tests: `test/` (`.spec.ts` for unit, `.e2e-spec.ts` for integration)
 
-2. **Module System** (`src/app.module.ts`):
-   - Root NestJS module with dependency injection
-   - Centralized configuration and provider management
-   - Import shared utilities, guards, interceptors here
-
-3. **Controllers** (`src/*.controller.ts`):
-   - NestJS controllers handle HTTP routes
-   - Use decorators: `@Controller()`, `@Get()`, `@Post()`, etc.
-   - Return typed objects (interfaces/classes)
-
-4. **Configuration** (`src/config/env.config.ts`):
-   - Static `Env` class for all environment variables
-   - Type-safe getters with safe defaults
-   - Supports `.env.dev` and `.env.production` files
-   - Variables: `nodeEnv`, `skipAuth`, `corsOrigin`, `port`
-
-### Directory Structure
-
-```
-src/
-├── app.controller.ts      # HTTP route handlers
-├── app.module.ts          # NestJS root module
-├── main.ts                # Application entry & Firebase export
-├── utils.ts               # Static utility functions
-└── config/
-    └── env.config.ts      # Environment configuration
-
-test/
-├── app.controller.spec.ts # Unit tests
-├── app.e2e-spec.ts        # E2E integration tests
-└── config/
-    └── env.config.spec.ts # Config tests
-```
-
-## Code Style & Conventions
+## Code Style Rules
 
 ### TypeScript
-- **Strict Mode**: Always enabled (`strict: true` in tsconfig.json)
-- **Type Safety**: Prefer explicit types over `any`
-- **Interfaces**: Use for public APIs and DTOs
-- **Enums**: Use for fixed sets of values (auth states, environments)
-- **Generics**: Leverage for reusable type-safe functions
+- Strict mode always enabled
+- Explicit types, never `any`
+- Interfaces for DTOs and public APIs
+- Enums for fixed value sets
+- Leverage generics for type-safe reusable functions
 
 ### NestJS Patterns
-- **Decorators**: Use NestJS decorators (`@Controller`, `@Get`, `@Inject`, etc.)
-- **Dependency Injection**: All services must be injectable via NestJS providers
-- **Module Pattern**: Organize features into feature modules
-- **Return Types**: Always specify return types on controller methods
-- **HTTP Status**: Use NestJS `HttpCode` decorator for non-200 responses
-- **Error Handling**: Use NestJS exception filters and HttpException
+- Use NestJS decorators: `@Controller`, `@Get`, `@Post`, `@Inject`
+- Injectable services only (via providers)
+- Feature modules pattern: `src/features/<feature>/<feature>.module.ts`
+- Always specify return types on controller/service methods
+- Use `@HttpCode()` for non-200 responses
+- Throw `HttpException` for errors
 
-### Class & File Naming
-- **Controllers**: `*.controller.ts` (e.g., `user.controller.ts`)
-- **Services**: `*.service.ts` (e.g., `user.service.ts`)
-- **Guards**: `*.guard.ts` (e.g., `auth.guard.ts`)
-- **Interceptors**: `*.interceptor.ts` (e.g., `logging.interceptor.ts`)
-- **Modules**: `*.module.ts` (e.g., `user.module.ts`)
-- **Tests**: `*.spec.ts` for unit tests, `*.e2e-spec.ts` for E2E tests
+### Naming Conventions
+- Controllers: `*.controller.ts`
+- Services: `*.service.ts`
+- Guards: `*.guard.ts`
+- Interceptors: `*.interceptor.ts`
+- Modules: `*.module.ts`
+- Tests: `*.spec.ts` (unit), `*.e2e-spec.ts` (integration)
 
-### Formatting
-- **Code Formatter**: Prettier (automatic on save via eslint)
-- **Line Width**: 80 characters (configured in eslint.config.mjs)
-- **Indentation**: 2 spaces
-- **Quotes**: Single quotes for strings (ESLint rule)
-- **Semicolons**: Always include
-- **Trailing Commas**: ES5 style (in objects/arrays, not function params)
+### Formatting (Prettier + ESLint)
+- Line width: 80 chars
+- Indentation: 2 spaces
+- Single quotes
+- Semicolons required
+- Trailing commas: ES5 style
 
 ### Documentation
-- Use JSDoc comments for public APIs:
-  ```typescript
-  /**
-   * Fetches user profile by ID.
-   * Returns cached data if available.
-   *
-   * @param userId - The unique user identifier
-   * @returns Promise resolving to user profile
-   * @throws HttpException if user not found (404)
-   */
-  async getUserProfile(userId: string): Promise<UserDto> { }
-  ```
-- Document environment variables, configuration, and complex logic
-- Keep comments concise and use @param @returns @throws tags
+- JSDoc for public APIs with `@param`, `@returns`, `@throws`
+- Document environment variables and complex logic
+- Keep comments concise and clear
 
 ### Language Policy
-- **Default Language**: All code, documentation, comments, and messages must be in **English**
-- **Exception**: Only if explicitly requested by the user in the current message, generate content in Portuguese or other languages
-- **Applies to**:
-  - Code comments and JSDoc
-  - Variable/function/class names (always English)
-  - Git commit messages (must follow Conventional Commits in English)
-  - Documentation files (README.md, guides, etc.)
-  - Workflow file names and comments
-  - Error messages and logs
-  - All GitHub Issues and PR descriptions
-- **Example**:
-  ```typescript
-  // ✅ CORRECT
-  /**
-   * Calculates user's total purchases
-   */
-  function calculateTotalPurchases(userId: string) { }
-  
-  // ❌ WRONG
-  /**
-   * Calcula o total de compras do usuário
-   */
-  function calculateTotalPurchases(userId: string) { }
-  ```
+- **All code, comments, docs, and commits MUST be in English**
+- Exception: Only if explicitly requested in current message
+- Applies to: variable names, JSDoc, commit messages, error logs, PR descriptions
 
 ## Development Guidelines
 
 ### Environment Configuration
-- **Development**: `NODE_ENV=dev` → uses `.env.dev`
-- **Production**: `NODE_ENV=production` → uses `.env.production`
-- **Testing**: `NODE_ENV=test` → uses `.env.test` (if exists)
-- Access via `Env.variableName` static getters
+- Development: `NODE_ENV=dev` → `.env.dev`
+- Production: `NODE_ENV=production` → `.env.production`
+- Testing: `NODE_ENV=test` → `.env.test`
+- Access via `Env.variableName` static getters only
 
-### Firebase Functions Specifics
-- Application instance is **cached** for performance (serverless optimization)
-- Supports both local Express and Firebase Cloud Functions
-- CORS is preconfigured, can be overridden via `CORS_ORIGIN` env var
-- Region: `southamerica-east1` (change in `src/main.ts` if needed)
-- HTTP triggers use `onRequest` handler from `firebase-functions/v2/https`
-
-### Middleware Order (in `src/main.ts`)
-1. CORS middleware
-2. JSON parser
-3. URL-encoded parser
-4. Custom body trimmer (removes whitespace from string fields)
+### Firebase Specifics
+- App instance cached in `main.ts` for serverless optimization
+- Region: `southamerica-east1`
+- CORS preconfigured via `CORS_ORIGIN` env var
+- HTTP triggers use `onRequest` from `firebase-functions/v2/https`
+- Middleware order: CORS → JSON parser → URL-encoded → body trimmer
 
 ### Database Integration
-When adding database support (Firestore, MongoDB, Postgres):
 - Create feature modules under `src/features/`
-- Use NestJS services with dependency injection
-- Add configuration to `src/config/env.config.ts`
-- Follow Repository pattern for data access
+- Use Repository pattern for data access
+- Add config to `src/config/env.config.ts`
 - Add integration tests in `test/`
 
 ## Testing Patterns
@@ -164,12 +93,12 @@ When adding database support (Firestore, MongoDB, Postgres):
 ### Unit Tests (`.spec.ts`)
 - Test single class/function in isolation
 - Mock external dependencies
-- Use Jest utilities: `describe()`, `it()`, `beforeEach(), `expect()`
+- Use Jest: `describe()`, `it()`, `beforeEach()`, `expect()`
 
 ### E2E Tests (`.e2e-spec.ts`)
 - Test complete request/response flow
 - Use NestJS Testing Module with full ApplicationContext
-- Import the actual module being tested
+- Import actual module being tested
 
 ### Test Structure Template
 ```typescript
@@ -228,6 +157,39 @@ git diff src/app.controller.ts
 git log -1 --name-status
 ```
 
+### Commit Strategy
+
+**Prefer smaller, atomic commits over single large commits.** Each commit should represent a single logical unit of work that can be reviewed and understood independently.
+
+**Benefits of atomic commits:**
+- Easier code review and understanding of changes
+- Simpler git history for debugging and bisecting
+- Better for reverting specific features without affecting others
+- Clearer project history and commit messages
+
+**When to split into multiple commits:**
+- Different features or fixes should be separate commits
+- Infrastructure/setup changes separate from business logic
+- Documentation updates separate from code changes
+- Test additions can be separate from implementation if large
+
+**Example strategy:** For a feature with infrastructure, implementation, tests, and docs:
+```bash
+git add src/infrastructure/...
+git commit -m "feat: add firestore provider infrastructure"
+
+git add src/features/song/...
+git commit -m "feat: implement song repository and service"
+
+git add test/...
+git commit -m "test: add integration tests for song feature"
+
+git add docs/
+git commit -m "docs: add song feature documentation"
+```
+
+This creates a clean, reviewable history instead of one monolithic commit.
+
 ### Pull Request Title & Description
 
 When asked to generate a pull request title or description, **analyze git context** to ensure accuracy:
@@ -236,17 +198,36 @@ When asked to generate a pull request title or description, **analyze git contex
 # Get current branch name
 git branch --show-current
 
-# View commits on this branch (not on main/master)
-git log main..HEAD --oneline
+# View commits on this branch (not on develop)
+git log develop..HEAD --oneline
 
 # View full commit details for context
-git log main..HEAD --format="%B"
+git log develop..HEAD --format="%B"
 
-# Compare changes with main/master
-git diff main... --stat
+# Compare changes with develop
+git diff develop... --stat
 ```
 
 **Important**: Use the branch name and commit history as context, not just current session information. This ensures the PR title/description accurately reflects what was actually implemented in the branch.
+
+### Formatting for PR Descriptions and Commit Comments
+
+When providing a PR description or commit comments, always output the response
+as a Markdown code block.
+
+### Rich PR Formatting Requirement
+
+When asked to generate a PR title/description for the current branch, return a
+well-structured Markdown response (inside a code block) that uses formatting to
+enhance readability and clarity. Enrich the output using:
+- Headings and subheadings (e.g., `#`, `##`, `###`) for sections
+- Emphasis for key terms (bold, italics) and optional underline via HTML tags
+- Task lists with checkboxes for tests, verification, or follow-ups
+- Short, scannable bullet lists for changes and impacts
+- Optional callouts (blockquotes) for important notes or risks
+
+The goal is a polished, review-friendly PR description that highlights scope,
+tests, and notable changes without being verbose.
 
 ### Branch Naming Convention
 - `feat/` - New features (e.g., `feat/add-user-auth`)
@@ -316,148 +297,75 @@ Before committing, ensure:
 ## Common Patterns & Best Practices
 
 ### Adding a New Feature
-
-1. **Create Feature Module**:
-   ```typescript
-   // src/features/user/user.module.ts
-   import { Module } from '@nestjs/common';
-   import { UserController } from './user.controller';
-   import { UserService } from './user.service';
-
-   @Module({
-     controllers: [UserController],
-     providers: [UserService],
-     exports: [UserService],
-   })
-   export class UserModule {}
-   ```
-
-2. **Create Controller**:
-   ```typescript
-   // src/features/user/user.controller.ts
-   import { Controller, Get, Param } from '@nestjs/common';
-   import { UserService } from './user.service';
-
-   @Controller('users')
-   export class UserController {
-     constructor(private readonly userService: UserService) {}
-
-     @Get(':id')
-     async getUser(@Param('id') id: string) {
-       return this.userService.findById(id);
-     }
-   }
-   ```
-
-3. **Create Service**:
-   ```typescript
-   // src/features/user/user.service.ts
-   import { Injectable } from '@nestjs/common';
-
-   @Injectable()
-   export class UserService {
-     async findById(id: string) {
-       // Business logic here
-       return { id, name: 'Example' };
-     }
-   }
-   ```
-
-4. **Register in AppModule**:
-   ```typescript
-   import { UserModule } from './features/user/user.module';
-
-   @Module({
-     imports: [UserModule],
-   })
-   export class AppModule {}
-   ```
+1. Create feature module in `src/features/<feature>/<feature>.module.ts`
+2. Create controller with `@Controller()` decorator
+3. Create injectable service with `@Injectable()` decorator
+4. Register module in `AppModule` imports
 
 ### Error Handling
+
+Use **domain-level errors** for business logic failures. Define custom error classes extending `DomainError` in `src/common/errors/domain-error.ts`. The global exception filter automatically translates domain errors to HTTP responses with proper status codes.
+
+**Domain errors** (preferred for domain-level failures):
+```typescript
+import { SongNotFoundError, SeparationConflictError } from '@/common/errors';
+
+if (!song) {
+  throw new SongNotFoundError(`Song with ID ${songId} not found`, { songId });
+}
+if (song.separatedSongInfo) {
+  throw new SeparationConflictError('Song already has a separation', { songId });
+}
+```
+
+**HttpException** (for low-level validation/NestJS errors):
 ```typescript
 import { HttpException, HttpStatus } from '@nestjs/common';
 
-throw new HttpException(
-  { message: 'User not found', statusCode: 404 },
-  HttpStatus.NOT_FOUND,
-);
+if (!file) throw new HttpException('File is required', HttpStatus.BAD_REQUEST);
 ```
 
-### Input Validation (class-validator + class-transformer)
+### Input Validation
+Use class-validator decorators on DTOs:
 ```typescript
-import { IsString, IsEmail, MinLength } from 'class-validator';
-
 export class CreateUserDto {
-  @IsString()
-  @MinLength(2)
-  name: string;
-
-  @IsEmail()
-  email: string;
-}
-
-// In controller:
-@Post()
-async create(@Body() createUserDto: CreateUserDto) {
-  // NestJS validates automatically via ValidationPipe
+  @IsString() @MinLength(2) name: string;
+  @IsEmail() email: string;
 }
 ```
 
 ### Custom Decorators
-```typescript
-import { createParamDecorator, ExecutionContext } from '@nestjs/common';
-
-export const CurrentUser = createParamDecorator(
-  (_data: unknown, ctx: ExecutionContext) => {
-    const request = ctx.switchToHttp().getRequest();
-    return request.user;
-  },
-);
-
-// Usage:
-@Get('profile')
-async getProfile(@CurrentUser() user: UserPayload) { }
-```
+Use `createParamDecorator` from `@nestjs/common` to extract request data.
 
 ## Build & Deployment
 
-### Local Development
-```bash
-npm run dev        # Hot reload on port 5001
-npm run build      # Compile to dist/
-npm run lint       # Check code quality
-npm run format     # Auto-format code
-```
-
-### Firebase Deployment
-```bash
-npm run deploy     # Deploy to Firebase (prod alias)
-npm run serve      # Local Firebase emulator
-npm run logs       # View Firebase Function logs
-```
+### Commands
+- `npm run dev` - Hot reload (port 5001)
+- `npm run build` - Compile to `dist/`
+- `npm run lint` / `npm run format` - Code quality
+- `npm run deploy` - Deploy to Firebase
+- `npm run serve` - Local Firebase emulator
+- `npm run logs` - View Firebase logs
 
 ### Build Output
-- TypeScript compiles to `dist/` directory
-- Only production code, no tests or configs
-- Entry point: `dist/main.js` (the Firebase Function)
+Entry point: `dist/main.js` (Firebase Function)
 
 ## Important Notes for Code Generation
 
-1. **Always use TypeScript strict mode** - Enable all strict checks
-2. **Return explicit types** - Never use implicit `any` returns on controller methods
-3. **Use dependency injection** - Never instantiate services with `new`, inject them
-4. **Handle async/await properly** - Controllers and services are async
-5. **Env configuration** - Always use `Env` class for environment variables, don't use `process.env` directly
-6. **Firebase caching** - The app instance is cached in `main.ts` - don't recreate it
-7. **CORS aware** - Respect the `CORS_ORIGIN` configuration
-8. **Error responses** - Use NestJS `HttpException` for consistent error handling
-9. **Test isolation** - Each test should be independent and not rely on test order
-10. **No console.log in production** - Use proper NestJS logger or structured logging
+1. Always use TypeScript strict mode - enable all strict checks
+2. Return explicit types - never implicit `any` on methods
+3. Use dependency injection - never instantiate with `new`
+4. Handle async/await properly - controllers/services are async
+5. Use `Env` class for environment vars - never `process.env` directly
+6. Firebase app instance cached in `main.ts` - don't recreate
+7. Respect `CORS_ORIGIN` configuration
+8. Use `DomainError` for business logic failures - domain errors abstract HTTP concerns
+9. Test isolation - tests independent, no order dependency
+10. Use NestJS logger - no `console.log` in production
+11. Keep docs in sync - update related docs when modifying code
 
 ## Related Configuration Files
-- `tsconfig.json` - TypeScript configuration (strict mode enabled)
-- `jest.config.js` (in package.json) - Jest testing configuration
-- `eslint.config.mjs` - ESLint rules and formatter settings
-- `.firebaserc` - Firebase project configuration
-- `firebase.json` - Firebase deployment configuration
+- `tsconfig.json` - TypeScript strict mode
+- `eslint.config.mjs` - ESLint + Prettier rules
+- `firebase.json` / `.firebaserc` - Firebase deployment
 - `nest-cli.json` - NestJS CLI configuration

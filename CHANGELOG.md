@@ -1,64 +1,42 @@
 # Changelog
 
-All notable changes to this template will be documented in this file.
+All notable changes to the SingLab API will be documented in this file.
 
-## [1.0.0] - 2026-02-15
+## [Unreleased]
 
-### Initial Release
+### Added
+- User registration endpoint `POST /users` — creates a Firebase Auth account and a Firestore profile document atomically, with Auth rollback on Firestore failure
+- `UsersModule` with `UsersService` and `UsersController`
+- `CreateUserSchema` (Zod) validating `name` (min 3, max 255), `email` (format, max 255), and `password` (min 6, max 255, printable ASCII only)
+- URL refresh endpoint `GET /songs/:songId/raw/url` for automatic signed URL renewal
+- Automatic URL expiration detection and refresh (refreshes when <24h remaining)
+- `rawSongInfo.urlInfo.expiresAt` for client-side cache optimization
+- `refreshed` boolean in URL response indicating if new URL was generated
 
-#### Features
-- ✅ NestJS 11 with Express adapter
-- ✅ Firebase Cloud Functions v2 deployment with `onRequest`
-- ✅ TypeScript with strict configuration
-- ✅ Centralized environment configuration with type-safe `Env` class
-- ✅ CORS support with flexible configuration
-- ✅ Jest testing framework (unit + e2e tests)
-- ✅ ESLint + Prettier for code quality
-- ✅ Hot reload development mode
-- ✅ Clean build output (dist/ without test files)
-- ✅ GitHub Actions CI/CD workflows
-- ✅ Comprehensive documentation
+### Changed
+- Updated `RawSongInfo` to store URL metadata in `urlInfo`
+- Improved URL management strategy with 7-day validity period
+- Updated Songs module documentation with URL refresh patterns
+- Simplified URL refresh endpoint response structure (flat `value`/`expiresAt` instead of nested `urlInfo`)
 
-#### Structure
-- `src/config/` - Centralized configuration layer
-- `src/` - Application source code
-- `test/` - Unit and e2e tests
-- `dist/` - Compiled output (production-ready)
+## [0.1.0] - 2026-02-26
 
-#### Scripts
-- `npm run start:dev` - Development with hot reload
-- `npm test` - Run all tests
-- `npm run build` - Compile to JavaScript
-- `npm run serve` - Firebase emulators
-- `npm run deploy` - Deploy to Firebase
-- `npm run lint` - ESLint
-- `npm run format` - Prettier
+### Changed
+- Adapted documentation to reflect the SingLab API scope and roadmap.
 
-#### Documentation
-- `README.md` - Complete usage guide
-- `TEMPLATE_SETUP.md` - Initial setup instructions
-- `CONTRIBUTING.md` - Contribution guidelines
-- `LICENSE` - MIT License
+## [0.0.0] - 2026-02-15
 
-#### Dependencies
-- @nestjs/common: ^11.0.1
-- @nestjs/core: ^11.0.1
-- @nestjs/platform-express: ^11.0.1
-- express: ^4.22.1
-- firebase-admin: ^13.6.1
-- firebase-functions: ^7.0.5
-- TypeScript: ^5.7.3
-- Jest: ^30.0.0
+### Added
+- Initial NestJS and Firebase Functions scaffold.
+- Environment configuration via `Env` class.
+- Jest unit and e2e test setup.
+- ESLint and Prettier configuration.
+- GitHub Actions for CI and deployment.
 
----
-
-## Template Guidelines
+## Changelog Guidelines
 
 ### Versioning
-This template follows [Semantic Versioning](https://semver.org/):
-- **MAJOR**: Breaking changes
-- **MINOR**: New features (backward compatible)
-- **PATCH**: Bug fixes
+This project follows [Semantic Versioning](https://semver.org/).
 
 ### Changelog Format
 - Added: New features

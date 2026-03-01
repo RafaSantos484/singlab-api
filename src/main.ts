@@ -5,10 +5,11 @@
 
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { Env } from './config/env.config';
 import { Utils } from './utils';
+import { GlobalExceptionFilter } from './common/filters';
 import express from 'express';
 import cors from 'cors';
 import { onRequest } from 'firebase-functions/v2/https';
@@ -16,13 +17,33 @@ import { onRequest } from 'firebase-functions/v2/https';
 /** NestJS logger scope types */
 type LoggerScope = 'error' | 'warn' | 'log' | 'debug' | 'verbose' | 'fatal';
 
+/** Logger instance for bootstrapping messages */
+const logger = new Logger('Bootstrap');
+
 // Create an Express instance for integration with NestJS
 const expressApp = express();
 
 // Configure Express middlewares
 expressApp.use(cors({ origin: Env.corsOrigin }));
-expressApp.use(express.json());
-expressApp.use(express.urlencoded({ extended: true }));
+
+// Body parser with 50kb limit for most routes
+// Routes that need larger payloads (audio files, large JSON) are handled by multer
+expressApp.use((req, res, next) => {
+  // Skip body parser for upload routes
+  if (req.path.includes('/upload')) {
+    return next();
+  }
+  express.json({ limit: '50kb' })(req, res, next);
+});
+
+expressApp.use((req, res, next) => {
+  // Skip urlencoded parser for upload routes
+  if (req.path.includes('/upload')) {
+    return next();
+  }
+  express.urlencoded({ extended: true, limit: '50kb' })(req, res, next);
+});
+
 expressApp.use((req, _res, next) => {
   if (req.body) {
     req.body = Utils.trim(req.body);
@@ -50,7 +71,7 @@ async function createNestApplication(): Promise<INestApplication> {
 
   // Define log levels based on environment
   const loggerScopes: LoggerScope[] = ['error', 'warn', 'log'];
-  if (Env.nodeEnv === 'dev') {
+  if (Env.nodeEnv === 'dev' || Env.nodeEnv === 'local') {
     loggerScopes.push('debug', 'verbose');
   }
 
@@ -67,11 +88,31 @@ async function createNestApplication(): Promise<INestApplication> {
     credentials: true,
   });
 
+  // Apply global exception filter for standardized error responses
+  app.useGlobalFilters(new GlobalExceptionFilter());
+
+  // Global request validation pipeline
+  // Validates and transforms incoming payloads against DTOs:
+  // - whitelist: Strip unknown properties (security)
+  // - transform: Auto-convert primitive types (string '123' → number 123)
+  // - forbidUnknownValues: Allow unmapped extra fields (for middleware extensibility)
+  // - implicitConversion: Enable type coercion for query/param strings
+  // This ensures all controller inputs are validated before reaching business logic
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidUnknownValues: false,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
+
   // Initialize the application
   await app.init();
 
   // Store in cache for reuse
   cachedApp = app;
+
   return app;
 }
 
@@ -79,21 +120,29 @@ async function createNestApplication(): Promise<INestApplication> {
  * Exports the API as a Firebase Function.
  * This function is automatically invoked by Firebase when an HTTP request is received.
  */
-export const api = onRequest(
-  { cors: true, region: 'southamerica-east1' },
-  async (req, res) => {
-    await createNestApplication();
-    expressApp(req, res);
-  },
-);
-
-// Local development
-void createNestApplication().then(() => {
-  const port = Env.port;
-  expressApp.listen(port, () => {
-    console.log(`🚀 Server running on http://localhost:${port}`);
-    console.log(
-      `🔒 CORS configured for origins: ${JSON.stringify(Env.corsOrigin)}`,
-    );
-  });
+export const api = onRequest({ cors: true }, async (req, res) => {
+  await createNestApplication();
+  expressApp(req, res);
 });
+
+/**
+ * Starts the local development server only in dev/local environments.
+ * In production (Firebase Functions), the server is managed by Firebase.
+ */
+if (Env.nodeEnv === 'dev' || Env.nodeEnv === 'local') {
+  void createNestApplication().then(() => {
+    const port = Env.port;
+    expressApp.listen(port, () => {
+      logger.log(`🌐 HTTP Server running on http://localhost:${port}`);
+      logger.log(`🔒 CORS configured for: ${JSON.stringify(Env.corsOrigin)}`);
+      logger.log(`🎵 SingLab API - Ready to accept song uploads`);
+    });
+  });
+} else if (Env.nodeEnv === 'production') {
+  logger.log('🚀 NestJS application initialized in production');
+  logger.log('☁️  Firebase Functions - active');
+  logger.log(`🔒 CORS configured for: ${JSON.stringify(Env.corsOrigin)}`);
+} else {
+  logger.log(`ℹ️  Environment: ${Env.nodeEnv}`);
+  logger.log(`🔒 CORS configured for: ${JSON.stringify(Env.corsOrigin)}`);
+}

@@ -1,9 +1,15 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
+import { FirebaseAuthGuard } from './auth/firebase-auth.guard';
+import { FirebaseAdminProvider } from './auth/firebase-admin.provider';
+import { DatabaseModule } from './infrastructure';
+import { SongsModule } from './features/songs/songs.module';
+import { UsersModule } from './features/users/users.module';
+import { SeparationsModule } from './features/separations/separations.module';
 
 @Module({
-  imports: [],
+  imports: [DatabaseModule, SongsModule, UsersModule, SeparationsModule],
   controllers: [AppController],
-  providers: [],
+  providers: [FirebaseAdminProvider, FirebaseAuthGuard],
 })
 export class AppModule {}

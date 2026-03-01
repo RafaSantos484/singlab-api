@@ -188,7 +188,7 @@ my-app-firebase-abc123
 # 5. Test workflows
 [ ] Create PR to develop → Branch Validation + CI
 [ ] Merge to develop → CI again
-[ ] Merge to master (via PR) → Automatic deploy
+[ ] Merge to default branch/develop (via PR) → Automatic deploy
 ```
 
 ---
