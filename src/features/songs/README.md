@@ -15,25 +15,20 @@ Module responsible for song upload and management with automatic audio conversio
   - `title`: Song title
   - `author`: Artist/Author
   - `rawSongInfo`: Object with raw file information
-    - `urlInfo`: Signed URL info
-      - `value`: Signed URL of file in Storage (valid for 7 days)
-      - `expiresAt`: Expiration timestamp (ISO 8601)
-    - `uploadedAt`: Upload timestamp (ISO 8601)
+    - `path`: Storage path of the converted MP3 (e.g. `users/{userId}/songs/{songId}/raw.mp3`)
   - `status`: Processing state ('processing' → 'ready')
   - `format`: Final format ('mp3')
 
 - **Firebase Storage**: Converted file at `/users/{userId}/songs/{songId}/raw.mp3`
 
-### 3. Automatic URL Refresh
-- Signed URLs expire in **7 days**
-- Use `GET /songs/:songId/raw/url` to get always-valid URL
-- Backend checks expiration and automatically renews if <24h remaining
-- Client avoids broken links without complex logic
+### 3. On-demand signed URLs
+- Signed URLs are generated only when requested (valid for 7 days)
+- Use `GET /songs/:songId/raw/url` to obtain a fresh URL based on the stored path
+- No expiration metadata is stored; clients always fetch a new URL when needed
 
 **Invariants:**
-- Storage path is always `users/{userId}/songs/{songId}/raw.mp3` (used for cleanup and refresh logic).
-- URL refresh updates Firestore atomically; no client-provided URL is ever trusted.
-- Separation metadata (`separatedSongInfo`) is appended without mutating raw file metadata.
+- Storage path is always `users/{userId}/songs/{songId}/raw.mp3` (used for cleanup and URL generation).
+- Separation metadata (`separatedSongInfo` with providerData + stems) is appended without mutating raw file metadata.
 
 ## Architecture
 
@@ -81,11 +76,7 @@ metadata: {"title": "Song Name", "author": "Artist Name"}
     "title": "Song Name",
     "author": "Artist Name",
     "rawSongInfo": {
-      "urlInfo": {
-        "value": "https://storage.googleapis.com/...",
-        "expiresAt": "2026-03-06T10:30:00.000Z"
-      },
-      "uploadedAt": "2026-02-26T10:30:00.000Z"
+      "path": "users/abc123/songs/xyz/raw.mp3"
     }
   }
 }
@@ -106,11 +97,7 @@ Authorization: <Firebase Auth Token>
     "title": "Song Name",
     "author": "Artist Name",
     "rawSongInfo": {
-      "urlInfo": {
-        "value": "https://storage.googleapis.com/...",
-        "expiresAt": "2026-03-06T10:30:00.000Z"
-      },
-      "uploadedAt": "2026-02-26T10:30:00.000Z"
+      "path": "users/abc123/songs/xyz/raw.mp3"
     },
     "status": "ready",
     "format": "mp3"
@@ -134,11 +121,7 @@ Authorization: <Firebase Auth Token>
       "title": "Song Name",
       "author": "Artist Name",
       "rawSongInfo": {
-        "urlInfo": {
-          "value": "https://storage.googleapis.com/...",
-          "expiresAt": "2026-03-06T10:30:00.000Z"
-        },
-        "uploadedAt": "2026-02-26T10:30:00.000Z"
+        "path": "users/abc123/songs/xyz/raw.mp3"
       },
       "status": "ready",
       "format": "mp3"
@@ -155,9 +138,8 @@ Authorization: <Firebase Auth Token>
 ```
 
 **Behavior:**
-- Checks validity of stored URL (`urlInfo.expiresAt`)
-- If <24h remaining or expired: generates new URL (valid for 7 days) and updates Firestore
-- If >24h remaining: returns current URL
+- Generates a signed URL (valid for 7 days) based on the stored path
+- No expiration metadata is persisted in Firestore
 
 **Response (200 OK):**
 ```json
@@ -165,29 +147,14 @@ Authorization: <Firebase Auth Token>
   "success": true,
   "data": {
     "value": "https://storage.googleapis.com/...",
-    "expiresAt": "2026-03-06T10:30:00.000Z",
-    "refreshed": false
+    "path": "users/abc123/songs/xyz/raw.mp3"
   }
 }
 ```
 
-**Field `refreshed`:**
-- `false`: Existing URL still valid (cache-friendly)
-- `true`: New URL generated (client should invalidate cache)
-
 **Errors:**
 - `404 Not Found`: Song does not exist or has no raw file
 - `500 Internal Server Error`: Error generating signed URL
-
-**Recommended usage:**
-```typescript
-// Client checks urlInfo.expiresAt before using
-if (new Date(song.rawSongInfo.urlInfo.expiresAt) < new Date()) {
-  const { data } = await fetch(`/songs/${songId}/raw/url`);
-  song.rawSongInfo.urlInfo.value = data.value;
-  song.rawSongInfo.urlInfo.expiresAt = data.expiresAt;
-}
-```
 
 ### 5. Delete Song
 ```http
@@ -261,7 +228,7 @@ PATCH /songs/abc123
 {
   "title": "New Title",
   "file": "malicious-file.mp3",
-  "rawSongInfo": {"urlInfo": {"value": "hacked-url"}}
+  "rawSongInfo": {"path": "malicious-path.mp3"}
 }
 ```
 Result: Only title is updated, other fields are ignored
