@@ -30,11 +30,15 @@ export class SeparationsService {
    * Orchestrates the separation flow:
    * 1. Gets provider instance from factory
    * 2. Fetches and validates song ownership
-   * 3. Checks if separation already exists
+   * 3. Checks if separation already exists (allows retry if status is 'failed')
    * 4. Extracts audio URL from song document
    * 5. Submits separation request to provider
    * 6. Updates song document with separation info
    * 7. Handles provider-specific errors
+   *
+   * If a previous separation attempt failed, this method allows automatic retry
+   * without requiring manual deletion. For other statuses (not_started, processing,
+   * finished), a conflict error is thrown.
    *
    * @param userId - ID of the authenticated user
    * @param songId - ID of the song to separate
@@ -59,18 +63,32 @@ export class SeparationsService {
       });
     }
 
-    // Check if separation already exists
+    // Check if separation already exists and validate state
     if (song.separatedSongInfo) {
-      this.logger.warn(
-        `Separation already exists for song ${songId}, cannot create a new one`,
+      const taskStatus = provider.getTaskStatus(
+        song.separatedSongInfo.providerData,
       );
-      throw new SeparationConflictError(
-        'This song already has a separation. Delete it first before creating a new one.',
-        {
-          songId,
-          userId,
-          provider: provider.name,
-        },
+
+      // Allow automatic retry if previous attempt failed.
+      // This provides resilience against transient provider errors without
+      // requiring manual deletion. For other states (not_started, processing,
+      // finished), we enforce conflict to prevent accidental overwrites.
+      if (taskStatus !== 'failed') {
+        this.logger.warn(
+          `Separation already exists for song ${songId} with status '${taskStatus}', cannot create a new one`,
+        );
+        throw new SeparationConflictError(
+          'This song already has a separation. Delete it first before creating a new one.',
+          {
+            songId,
+            userId,
+            provider: provider.name,
+          },
+        );
+      }
+
+      this.logger.log(
+        `Previous separation attempt failed for song ${songId}, retrying with provider ${provider.name}`,
       );
     }
 
@@ -132,7 +150,13 @@ export class SeparationsService {
       });
     }
 
-    if (provider.isTaskFinished(song.separatedSongInfo?.providerData)) {
+    // Short-circuit if task is already finished to avoid unnecessary API calls.
+    // The provider's getTaskStatus() normalizes provider-specific statuses
+    // to the generic four-state model (not_started, processing, finished, failed).
+    if (
+      provider.getTaskStatus(song.separatedSongInfo?.providerData) ===
+      'finished'
+    ) {
       this.logger.log(
         `Separation task for song ${songId} is already finished according to provider ${provider.name}`,
       );
@@ -159,7 +183,7 @@ export class SeparationsService {
 
       // Check if task just finished and stems haven't been processed yet
       const isJustFinished =
-        provider.isTaskFinished(detail) &&
+        provider.getTaskStatus(detail) === 'finished' &&
         song.separatedSongInfo?.stems === null;
 
       if (isJustFinished) {

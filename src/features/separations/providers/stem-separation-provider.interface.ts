@@ -1,6 +1,21 @@
 export type SeparationProviderName = 'poyo';
 
 /**
+ * Generic task status used by all separation providers.
+ *
+ * Maps provider-specific statuses to a unified state machine:
+ * - not_started: Task queued, not yet processing
+ * - processing: Actively separating stems
+ * - finished: Completed successfully, stems are available
+ * - failed: Failed with an error
+ */
+export type SeparationTaskStatus =
+  | 'not_started'
+  | 'processing'
+  | 'finished'
+  | 'failed';
+
+/**
  * Interface for stem separation providers.
  *
  * Providers implement this interface to submit separation tasks to external services.
@@ -13,16 +28,16 @@ export interface StemSeparationProvider {
   readonly name: SeparationProviderName;
 
   /**
-   * Check if a separation task has finished.
+   * Get the normalized status of a separation task.
    *
-   * Examines task data returned by the provider and determines if the
-   * separation has completed successfully. Used to short-circuit status
-   * polling when the task is already done.
+   * Examines task data returned by the provider and maps provider-specific
+   * statuses to the generic four-state model. Used to track task progress
+   * and determine if stems are ready for processing.
    *
    * @param taskData - Provider-specific task metadata
-   * @returns true if task status indicates completion, false otherwise
+   * @returns Normalized task status (not_started, processing, finished, or failed)
    */
-  isTaskFinished(taskData: unknown): boolean;
+  getTaskStatus(taskData: unknown): SeparationTaskStatus;
 
   /**
    * Extract task identifier from provider-specific task data.

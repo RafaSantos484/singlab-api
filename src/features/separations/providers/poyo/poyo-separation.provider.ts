@@ -1,6 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Env } from '../../../../config/env.config';
-import type { StemSeparationProvider } from '../stem-separation-provider.interface';
+import type {
+  StemSeparationProvider,
+  SeparationTaskStatus,
+} from '../stem-separation-provider.interface';
 import type {
   PoyoSeparationTaskDetails,
   PoyoSeparationStatus,
@@ -92,8 +95,37 @@ export class PoyoStemSeparationProvider implements StemSeparationProvider {
     this.baseUrl = Env.poyoApiBaseUrl;
   }
 
-  isTaskFinished(taskData?: PoyoSeparationTaskDetails): boolean {
-    return taskData?.status === 'finished';
+  /**
+   * Maps PoYo-specific task statuses to the generic four-state model.
+   *
+   * PoYo status mapping:
+   * - not_started → not_started
+   * - running → processing
+   * - finished → finished
+   * - failed → failed
+   *
+   * @param taskData - PoYo task metadata (PoyoSeparationTaskDetails)
+   * @returns Normalized task status
+   */
+  getTaskStatus(taskData: unknown): SeparationTaskStatus {
+    const data = taskData as PoyoSeparationTaskDetails | undefined;
+
+    if (!data) {
+      return 'not_started';
+    }
+
+    switch (data.status) {
+      case 'not_started':
+        return 'not_started';
+      case 'running':
+        return 'processing';
+      case 'finished':
+        return 'finished';
+      case 'failed':
+        return 'failed';
+      default:
+        return 'not_started';
+    }
   }
 
   getTaskId(taskData?: PoyoSeparationTaskDetails): string | undefined {
