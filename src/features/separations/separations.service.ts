@@ -1,4 +1,5 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
+import type { Bucket } from '@google-cloud/storage';
 import { StemSeparationProviderFactory } from './providers/stem-separation-provider.factory';
 import { SongsService } from '../songs/songs.service';
 import {
@@ -7,15 +8,21 @@ import {
   SeparationProviderError,
   SongNotFoundError,
 } from '../../common/errors';
+import { FirebaseAdminProvider } from '../../auth/firebase-admin.provider';
+import type { SeparatedSongStems } from '../songs/songs.service';
 
 @Injectable()
 export class SeparationsService {
   private readonly logger = new Logger(SeparationsService.name);
+  private readonly bucket: Bucket;
 
   constructor(
     private readonly providerFactory: StemSeparationProviderFactory,
     private readonly songsService: SongsService,
-  ) {}
+    firebaseAdminProvider: FirebaseAdminProvider,
+  ) {
+    this.bucket = firebaseAdminProvider.getBucket();
+  }
 
   /**
    * Submit stem separation request to provider.
@@ -67,7 +74,9 @@ export class SeparationsService {
       );
     }
 
-    const audioUrl = song.rawSongInfo.urlInfo.value;
+    const audioUrl = await this.songsService.createSignedUrlForPath(
+      song.rawSongInfo.path,
+    );
     try {
       const separateTaskData = await provider.requestSeparation(
         audioUrl,
@@ -75,7 +84,11 @@ export class SeparationsService {
       );
 
       // Update song document with separation info
-      await song.updateSeparatedSongInfo(provider.name, separateTaskData);
+      await song.updateSeparatedSongInfo({
+        provider: provider.name,
+        providerData: separateTaskData,
+        stems: null,
+      });
 
       this.logger.log(
         `Separation submitted successfully for song ${songId} (provider=${provider.name})`,
@@ -119,14 +132,14 @@ export class SeparationsService {
       });
     }
 
-    if (provider.isTaskFinished(song.separatedSongInfo?.data)) {
+    if (provider.isTaskFinished(song.separatedSongInfo?.providerData)) {
       this.logger.log(
         `Separation task for song ${songId} is already finished according to provider ${provider.name}`,
       );
-      return song.separatedSongInfo?.data;
+      return song.separatedSongInfo?.providerData;
     }
 
-    const taskId = provider.getTaskId(song.separatedSongInfo?.data);
+    const taskId = provider.getTaskId(song.separatedSongInfo?.providerData);
     if (!taskId) {
       this.logger.warn(
         `No valid task ID found for song ${songId} with provider ${provider.name}, cannot refresh status`,
@@ -143,7 +156,40 @@ export class SeparationsService {
 
     try {
       const detail = await provider.getTaskDetail(taskId);
-      await song.updateSeparatedSongInfo(provider.name, detail);
+
+      // Check if task just finished and stems haven't been processed yet
+      const isJustFinished =
+        provider.isTaskFinished(detail) &&
+        song.separatedSongInfo?.stems === null;
+
+      if (isJustFinished) {
+        this.logger.log(
+          `Separation task finished for song ${songId}, processing stems...`,
+        );
+
+        // Extract stem URLs from provider data
+        const stemUrls = provider.getStemUrls(detail);
+
+        // Download and upload stems to storage
+        const stems = await this.processStemUrls(userId, songId, stemUrls);
+
+        // Update song with both providerData and stems
+        await song.updateSeparatedSongInfo({
+          provider: provider.name,
+          providerData: detail,
+          stems,
+        });
+
+        this.logger.log(
+          `Successfully processed ${Object.keys(stems).length} stems for song ${songId}`,
+        );
+      } else {
+        // Just update provider data
+        await song.updateSeparatedSongInfo({
+          provider: provider.name,
+          providerData: detail,
+        });
+      }
 
       this.logger.log(
         `Updated separation status for song ${songId} (task=${taskId})`,
@@ -166,6 +212,114 @@ export class SeparationsService {
         songId,
         taskId,
       });
+    }
+  }
+
+  /**
+   * Process stem URLs by downloading and uploading to storage.
+   *
+   * Downloads each stem from provider URLs and uploads to Firebase Storage,
+   * storing only the path. Signed URLs are generated on-demand when needed.
+   *
+   * @param userId - User ID
+   * @param songId - Song ID
+   * @param stemUrls - Record of stem names to download URLs
+   * @returns Stem metadata with upload time and storage paths
+   */
+  private async processStemUrls(
+    userId: string,
+    songId: string,
+    stemUrls: Record<string, string>,
+  ): Promise<SeparatedSongStems> {
+    const now = new Date().toISOString();
+
+    const uploadResults = await Promise.all(
+      Object.entries(stemUrls).map(async ([stemName, stemUrl]) => {
+        try {
+          this.logger.debug(
+            `Processing stem ${stemName} for song ${songId}...`,
+          );
+
+          const stemBuffer = await this.downloadStem(stemUrl);
+
+          const storagePath = `users/${userId}/songs/${songId}/stems/${stemName}.mp3`;
+          await this.uploadStemToStorage(stemBuffer, storagePath);
+
+          this.logger.debug(
+            `Successfully processed stem ${stemName} for song ${songId}`,
+          );
+
+          return { stemName, storagePath };
+        } catch (error) {
+          const errorMsg =
+            error instanceof Error ? error.message : 'Unknown error';
+          this.logger.error(
+            `Failed to process stem ${stemName} for song ${songId}: ${errorMsg}`,
+          );
+          return null;
+        }
+      }),
+    );
+
+    const paths = uploadResults.reduce<Record<string, string>>(
+      (acc, result) => {
+        if (result) {
+          acc[result.stemName] = result.storagePath;
+        }
+        return acc;
+      },
+      {},
+    );
+
+    return {
+      uploadedAt: now,
+      paths,
+    };
+  }
+
+  /**
+   * Download stem audio file from URL.
+   *
+   * @param url - URL of the stem file
+   * @returns Buffer containing the downloaded file
+   * @throws Error if download fails
+   */
+  private async downloadStem(url: string): Promise<Buffer> {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to download stem: ${errorMsg}`);
+    }
+  }
+
+  /**
+   * Upload stem buffer to Firebase Storage.
+   *
+   * @param buffer - File content
+   * @param storagePath - Target storage path
+   * @throws Error if upload fails
+   */
+  private async uploadStemToStorage(
+    buffer: Buffer,
+    storagePath: string,
+  ): Promise<void> {
+    try {
+      const file = this.bucket.file(storagePath);
+      await file.save(buffer, {
+        metadata: {
+          contentType: 'audio/mpeg',
+        },
+      });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to upload stem to storage: ${errorMsg}`);
     }
   }
 }
