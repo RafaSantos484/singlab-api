@@ -30,6 +30,10 @@ jobs:
       - name: Create Firebase service account file
         run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > ${{ runner.temp }}/gcp-key.json
 
+      - name: Create .firebaserc file
+        run: |
+          echo '${{ secrets.FIREBASE_RC }}' > .firebaserc
+
       - name: Deploy to Firebase Functions
         run: |
           npm install -g firebase-tools
