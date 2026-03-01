@@ -42,16 +42,18 @@ export type PoyoFinishedSeparationTaskDetails =
     status: 'finished';
     error_message: null;
     progress: 100;
-    files: {
-      vocal_removal: {
-        bass: string | null;
-        drums: string | null;
-        piano: string | null;
-        guitar: string | null;
-        vocals: string | null;
-        other: string | null;
-      };
-    };
+    files: [
+      {
+        vocal_removal: {
+          bass: string | null;
+          drums: string | null;
+          piano: string | null;
+          guitar: string | null;
+          vocals: string | null;
+          other: string | null;
+        };
+      },
+    ];
   };
 
 export type PoyoFailedSeparationTaskDetails = PoyoSeparationTaskDetailsBase & {

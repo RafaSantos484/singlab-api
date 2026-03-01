@@ -100,6 +100,27 @@ export class PoyoStemSeparationProvider implements StemSeparationProvider {
     return taskData?.task_id;
   }
 
+  getStemUrls(taskData: unknown): Record<string, string> {
+    const data = taskData as PoyoSeparationTaskDetails | undefined;
+
+    if (data?.status !== 'finished') {
+      return {};
+    }
+
+    const files = data.files[0].vocal_removal;
+    const stemUrls: Record<string, string> = {};
+
+    // Only include stems that have non-null URLs
+    if (files.bass) stemUrls.bass = files.bass;
+    if (files.drums) stemUrls.drums = files.drums;
+    if (files.piano) stemUrls.piano = files.piano;
+    if (files.guitar) stemUrls.guitar = files.guitar;
+    if (files.vocals) stemUrls.vocals = files.vocals;
+    if (files.other) stemUrls.other = files.other;
+
+    return stemUrls;
+  }
+
   /**
    * Submit separation task to PoYo API.
    *

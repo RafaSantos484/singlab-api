@@ -58,4 +58,15 @@ export interface StemSeparationProvider {
    * @returns Normalized task detail including status and stems when ready
    */
   getTaskDetail(taskId: string): Promise<unknown>;
+
+  /**
+   * Extract stem URLs from provider-specific task data.
+   *
+   * Retrieves URLs of separated audio stems when task is finished.
+   * Returns empty object if task is not finished or data is incompatible.
+   *
+   * @param taskData - Provider-specific task metadata
+   * @returns Record of stem names to URLs, or empty object
+   */
+  getStemUrls(taskData: unknown): Record<string, string>;
 }
