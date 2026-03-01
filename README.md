@@ -91,6 +91,18 @@ npm run dev:local
 npm run build
 ```
 
+### Local Tunnel Exposure
+
+Expose local API via ngrok for testing webhooks and remote clients:
+
+```bash
+npm run tunnel          # Uses default environment (local)
+npm run tunnel:dev      # Uses dev environment
+npm run tunnel:local    # Uses local environment
+```
+
+Requires ngrok CLI installed globally. Install with: `npm install -g ngrok`
+
 ### Testing
 
 ```bash
