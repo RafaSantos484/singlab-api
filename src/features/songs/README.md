@@ -328,7 +328,7 @@ FIREBASE_SERVICE_ACCOUNT_JSON=<credentials.json>
 GOOGLE_APPLICATION_CREDENTIALS=<path/to/credentials.json>
 
 # Storage
-FIREBASE_STORAGE_BUCKET=<project-id>.appspot.com
+APP_FIREBASE_STORAGE_BUCKET=<project-id>.appspot.com
 ```
 
 ### Firestore/Storage Permissions
@@ -519,7 +519,7 @@ Important logs for monitoring:
 
 ### Storage permission error
 - Verify Firebase Storage security rules
-- Confirm `FIREBASE_STORAGE_BUCKET` is configured
+- Confirm `APP_FIREBASE_STORAGE_BUCKET` is configured
 
 ### Firestore transaction error
 - Limit of 500 operations per transaction not exceeded (unlikely)
