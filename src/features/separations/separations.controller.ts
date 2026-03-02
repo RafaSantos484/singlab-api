@@ -9,6 +9,9 @@ import {
   Req,
   Param,
   UseGuards,
+  Patch,
+  Body,
+  BadRequestException,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { FirebaseAuthGuard } from '../../auth/firebase-auth.guard';
@@ -76,6 +79,48 @@ export class SeparationsController {
     return {
       success: true,
       data: detail,
+    };
+  }
+
+  /**
+   * Update the stems for a completed separation task.
+   *
+   * The client uploads stems to Firebase Storage and sends this request with
+   * the storage paths. The API persists the stem paths to the song document
+   * for later retrieval.
+   *
+   * @param req - Authenticated request containing user information
+   * @param songId - ID of the song
+   * @param body - Payload with stem paths (Record<stemName, storagePath>)
+   * @param provider - Optional provider name (defaults to first available)
+   * @returns Confirmation message
+   * @throws {BadRequestException} Invalid stem paths
+   * @throws {NotFoundException} Song not found or no separation exists
+   */
+  @Patch(':songId/separations/stems')
+  @HttpCode(HttpStatus.OK)
+  async updateSeparationStems(
+    @Req() req: AuthenticatedRequest,
+    @Param() params: SeparationSongParamsDto,
+    @Query() query: SeparationProviderQueryDto,
+    @Body() body: Record<string, unknown>,
+  ) {
+    if (!body || !body.stems || typeof body.stems !== 'object') {
+      throw new BadRequestException(
+        'Request body must contain a "stems" object with stem paths',
+      );
+    }
+
+    await this.separationsService.updateSeparationStems(
+      req.user.uid,
+      params.songId,
+      body.stems as Record<string, string>,
+      query.provider,
+    );
+
+    return {
+      success: true,
+      message: 'Separation stems updated successfully',
     };
   }
 }

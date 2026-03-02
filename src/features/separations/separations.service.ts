@@ -1,4 +1,9 @@
-import { HttpException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import type { Bucket } from '@google-cloud/storage';
 import { StemSeparationProviderFactory } from './providers/stem-separation-provider.factory';
 import { SongsService } from '../songs/songs.service';
@@ -135,6 +140,24 @@ export class SeparationsService {
     }
   }
 
+  /**
+   * Refresh separation task status from the provider.
+   *
+   * Fetches the latest task detail from the provider and persists it to
+   * `separatedSongInfo.providerData`. Short-circuits if the task is already
+   * marked as finished to avoid unnecessary API calls.
+   *
+   * Stem storage paths are NOT managed here. The client is responsible for
+   * downloading stems from the provider and uploading them to Firebase Storage,
+   * then calling `updateSeparationStems` to persist the paths.
+   *
+   * @param userId - ID of the authenticated user
+   * @param songId - ID of the song
+   * @param providerName - Optional provider identifier (defaults to first available)
+   * @returns Provider-specific task detail
+   * @throws {SongNotFoundError} Song not found or doesn't belong to user
+   * @throws {SeparationProviderError} No task ID found or provider fetch failed
+   */
   async refreshSeparationStatus(
     userId: string,
     songId: string,
@@ -181,42 +204,15 @@ export class SeparationsService {
     try {
       const detail = await provider.getTaskDetail(taskId);
 
-      // Check if task just finished and stems haven't been processed yet
-      const isJustFinished =
-        provider.getTaskStatus(detail) === 'finished' &&
-        song.separatedSongInfo?.stems === null;
-
-      if (isJustFinished) {
-        this.logger.log(
-          `Separation task finished for song ${songId}, processing stems...`,
-        );
-
-        // Extract stem URLs from provider data
-        const stemUrls = provider.getStemUrls(detail);
-
-        // Download and upload stems to storage
-        const stems = await this.processStemUrls(userId, songId, stemUrls);
-
-        // Update song with both providerData and stems
-        await song.updateSeparatedSongInfo({
-          provider: provider.name,
-          providerData: detail,
-          stems,
-        });
-
-        this.logger.log(
-          `Successfully processed ${Object.keys(stems).length} stems for song ${songId}`,
-        );
-      } else {
-        // Just update provider data
-        await song.updateSeparatedSongInfo({
-          provider: provider.name,
-          providerData: detail,
-        });
-      }
+      // Update song with provider data only.
+      // Client is responsible for downloading stems and uploading to storage.
+      await song.updateSeparatedSongInfo({
+        provider: provider.name,
+        providerData: detail,
+      });
 
       this.logger.log(
-        `Updated separation status for song ${songId} (task=${taskId})`,
+        `Updated separation status for song ${songId} (task=${taskId}, status=${provider.getTaskStatus(detail)})`,
       );
 
       return detail;
@@ -240,11 +236,97 @@ export class SeparationsService {
   }
 
   /**
+   * Update the stems for an existing separation.
+   *
+   * Called by the client after uploading stems to Firebase Storage.
+   * Persists the stem storage paths to the song document.
+   *
+   * @param userId - User ID
+   * @param songId - Song ID
+   * @param stemPaths - Record of stem names to storage paths
+   * @param providerName - Optional provider identifier
+   * @throws {SongNotFoundError} Song not found or doesn't belong to user
+   * @throws {SeparationProviderError} No separation exists for this song
+   * @throws {BadRequestException} Stem files not found in storage
+   */
+  async updateSeparationStems(
+    userId: string,
+    songId: string,
+    stemPaths: Record<string, string>,
+    providerName?: string,
+  ): Promise<void> {
+    const provider = this.providerFactory.getProvider(providerName);
+
+    const song = await this.songsService.getSongById(userId, songId);
+    if (!song) {
+      throw new SongNotFoundError(`Song with ID ${songId} not found`, {
+        songId,
+        userId,
+      });
+    }
+
+    if (!song.separatedSongInfo) {
+      throw new SeparationProviderError('No separation exists for this song', {
+        songId,
+        userId,
+        provider: provider.name,
+      });
+    }
+
+    // Validate that all stem files exist in storage before updating the document
+    const validationResults = await Promise.all(
+      Object.entries(stemPaths).map(async ([stemName, storagePath]) => {
+        try {
+          const [exists] = await this.bucket.file(storagePath).exists();
+          if (!exists) {
+            this.logger.warn(
+              `Stem file ${stemName} not found at ${storagePath} for song ${songId}`,
+            );
+            return { stemName, exists: false, path: storagePath };
+          }
+          return { stemName, exists: true, path: storagePath };
+        } catch (error) {
+          const errorMsg =
+            error instanceof Error ? error.message : 'Unknown error';
+          this.logger.error(
+            `Failed to verify stem ${stemName} at ${storagePath}: ${errorMsg}`,
+          );
+          return { stemName, exists: false, path: storagePath };
+        }
+      }),
+    );
+
+    const missingStems = validationResults.filter((r) => !r.exists);
+    if (missingStems.length > 0) {
+      const missingPaths = missingStems.map((s) => s.path).join(', ');
+      throw new BadRequestException(
+        `Stem files not found in storage: ${missingPaths}. Upload the files before updating the document.`,
+      );
+    }
+
+    const now = new Date().toISOString();
+
+    // All stems validated - update song with stems only (preserve existing providerData)
+    await song.updateSeparatedSongInfo({
+      provider: provider.name,
+      stems: {
+        uploadedAt: now,
+        paths: stemPaths,
+      },
+    });
+
+    this.logger.log(
+      `Updated ${Object.keys(stemPaths).length} stems for song ${songId}`,
+    );
+  }
+
+  /**
    * Process stem URLs by downloading and uploading to storage.
    *
    * Downloads each stem from provider URLs and uploads to Firebase Storage,
    * storing only the path. Signed URLs are generated on-demand when needed.
    *
+   * @deprecated This method is kept for reference only. Stem processing is now the client's responsibility.
    * @param userId - User ID
    * @param songId - Song ID
    * @param stemUrls - Record of stem names to download URLs
