@@ -5,7 +5,8 @@
  * Migration Guide:
  * - Remove direct imports of AudioConversionUtil
  * - Inject AudioConversionService into your service/controller
- * - Replace convertToMp3() calls with convertAndStreamToStorage()
+ * - Replace convertToMp3() calls with convertAndStreamToStorage(inputFilePath, format, storagePath)
+ *   Note: write the file to disk first (multer diskStorage), then pass the absolute path
  * - Replace getFileFormat() calls with AudioConversionService.getFileFormat()
  * - Replace isSupportedFormat() calls with AudioConversionService.isSupportedFormat()
  *
