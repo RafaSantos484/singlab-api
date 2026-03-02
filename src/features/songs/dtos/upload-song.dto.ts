@@ -1,10 +1,16 @@
 import { z } from 'zod';
 
 /**
- * Validation schema for song upload.
- * Defines required fields and their validation rules.
+ * Validation schema for song registration.
+ * The client is responsible for uploading the raw audio file to Cloud Storage
+ * at `users/:userId/songs/:songId/raw.mp3` BEFORE calling this endpoint.
+ * The `songId` provided here must match the one used for the storage upload.
  */
 export const UploadSongSchema = z.object({
+  songId: z
+    .string()
+    .min(1, 'Song ID is required')
+    .max(128, 'Song ID must be at most 128 characters'),
   title: z
     .string()
     .min(1, 'Title is required')
@@ -16,17 +22,3 @@ export const UploadSongSchema = z.object({
 });
 
 export type UploadSongDto = z.infer<typeof UploadSongSchema>;
-
-/**
- * Schema for song upload response.
- * Returned after successful processing.
- */
-export const UploadSongResponseSchema = z.object({
-  songId: z.string(),
-  title: z.string(),
-  author: z.string(),
-  rawSongUrl: z.string().url(),
-  uploadedAt: z.string().datetime(),
-});
-
-export type UploadSongResponse = z.infer<typeof UploadSongResponseSchema>;

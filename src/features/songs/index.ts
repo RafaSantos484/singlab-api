@@ -12,11 +12,8 @@ export type {
   SeparatedSongInfo,
   SeparatedSongStems,
 } from './songs.service';
-export {
-  UploadSongSchema,
-  UploadSongResponseSchema,
-} from './dtos/upload-song.dto';
-export type { UploadSongDto, UploadSongResponse } from './dtos/upload-song.dto';
+export { UploadSongSchema } from './dtos/upload-song.dto';
+export type { UploadSongDto } from './dtos/upload-song.dto';
 export {
   UpdateSongSchema,
   UpdateSongResponseSchema,

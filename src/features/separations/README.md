@@ -1,6 +1,6 @@
 # Stem Separations
 
-Submit stem separation tasks for songs via a provider-agnostic interface. The controller exposes `POST /songs/:songId/separations` to submit work and `GET /songs/:songId/separations/status` to refresh task status while persisting provider responses into `separatedSongInfo.providerData` and ready-to-use stems into `separatedSongInfo.stems`. The audio URL is generated on-demand from the stored `rawSongInfo.path` using a signed URL.
+Submit stem separation tasks for songs via a provider-agnostic interface. The controller exposes `POST /songs/:songId/separations` to submit work, `GET /songs/:songId/separations/status` to refresh task status, and `PATCH /songs/:songId/separations/stems` to persist stem storage paths after the client uploads them. Provider responses are persisted into `separatedSongInfo.providerData`; stem storage paths are set via the PATCH endpoint after the client uploads the files. The audio URL is generated on-demand from the stored `rawSongInfo.path` using a signed URL.
 
 ## Request
 
@@ -56,19 +56,12 @@ The backend derives the task ID from the stored `separatedSongInfo` and short-ci
     "providerData": {
       "task_id": "xxxx-xxxx-xxxx",
       "status": "finished"
-    },
-    "stems": {
-      "uploadedAt": "2026-02-28T00:00:00Z",
-      "paths": {
-        "bass": "users/abc123/songs/xyz/stems/bass.mp3",
-        "vocals": "users/abc123/songs/xyz/stems/vocals.mp3"
-      }
     }
   }
 }
 ```
 
-`providerData` stores the provider-specific response (raw payload), while `stems` stores the normalized storage metadata with upload timestamp and storage paths. Signed URLs should be generated on demand from these paths. Stems are parsed from PoYo's `vocal_removal` JSON payload and stored without overwriting existing data while the task is still pending.
+`providerData` stores the raw provider-specific response payload. Stem storage paths are set separately once the client downloads and uploads the files via `PATCH /songs/:songId/separations/stems`.
 
 **Error Responses**:
 - `404 Not Found` (`SONG_NOT_FOUND`) - Song doesn't exist or doesn't belong to the user
@@ -90,6 +83,41 @@ All error responses follow this format:
   }
 }
 ```
+
+## Update Stems
+
+- **URL**: `PATCH /songs/:songId/separations/stems`
+- **Path Params**: `songId` (string, required)
+- **Query Params**:
+  - `provider` (string, optional): Overrides the default provider (defaults to `poyo`)
+- **Auth**: Firebase bearer token (required in production)
+
+Called by the client after downloading stems from the provider and uploading them to Firebase Storage. The request body must contain a `stems` object mapping stem names to their Firebase Storage paths.
+
+**Request body:**
+```json
+{
+  "stems": {
+    "vocals": "users/abc123/songs/xyz/stems/vocals.mp3",
+    "accompaniment": "users/abc123/songs/xyz/stems/accompaniment.mp3"
+  }
+}
+```
+
+The API validates that all provided storage paths exist in Firebase Storage before persisting them to the Firestore document. Existing `providerData` is preserved.
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Separation stems updated successfully"
+}
+```
+
+**Error Responses**:
+- `400 Bad Request` - Invalid request body or stem files not found in Storage
+- `404 Not Found` (`SONG_NOT_FOUND`) - Song doesn't exist or doesn't belong to the user
+- `502 Bad Gateway` (`SEPARATION_PROVIDER_ERROR`) - No separation exists for this song
 
 ## Configuration
 
