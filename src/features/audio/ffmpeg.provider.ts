@@ -5,6 +5,8 @@ import { Logger } from '@nestjs/common';
  */
 export interface FFmpegCommand {
   inputFormat(format: string): FFmpegCommand;
+  inputOptions(options: string[]): FFmpegCommand;
+  outputOptions(options: string[]): FFmpegCommand;
   audioCodec(codec: string): FFmpegCommand;
   audioBitrate(bitrate: string): FFmpegCommand;
   audioChannels(channels: number): FFmpegCommand;

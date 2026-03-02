@@ -7,8 +7,9 @@ Module responsible for song upload and management with automatic audio conversio
 ### 1. Song Upload
 - Accepts audio files (MP3, WAV, OGG, WebM, AAC, FLAC, M4A, WMA, Opus) or video (MP4, WebM, MOV)
 - Automatically converts file to standard MP3 format
+- **Low-memory pipeline**: multer writes the uploaded file to `/tmp` (disk); FFmpeg reads it as a stream — file bytes are never held in RAM as a Buffer
 - Validates metadata using Zod schema (title, author)
-- Performs operations in atomic Firestore transactions
+- Temp file is always deleted from disk after the operation (success or failure)
 
 ### 2. Storage
 - **Firestore**: Document with metadata at `/users/{userId}/songs/{songId}`
@@ -449,7 +450,9 @@ The `audio-conversion.util.ts` utility has been replaced by `AudioConversionServ
 
 **Migration reasons:**
 - ✅ Thread-safe FFmpeg initialization
-- ✅ Direct streaming to storage (no memory accumulation)
+- ✅ Disk-based upload: multer `diskStorage` — file never accumulated in RAM
+- ✅ Direct stream-to-storage pipeline (eliminates memory accumulation)
+- ✅ FFmpeg memory constraints (`-threads 1`, `-probesize 1M`)
 - ✅ Timeout protection (30 seconds)
 - ✅ Better error handling
 - ✅ NestJS dependency injection pattern
@@ -473,7 +476,7 @@ constructor(private audioConversionService: AudioConversionService) {}
 
 // Replace convertToMp3() with convertAndStreamToStorage()
 const result = await this.audioConversionService.convertAndStreamToStorage(
-  buffer,
+  inputFilePath,  // absolute path to temp file written by multer diskStorage
   format,
   storagePath
 );

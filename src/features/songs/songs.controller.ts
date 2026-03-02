@@ -17,6 +17,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import * as os from 'os';
+import * as path from 'path';
 import { SongsService } from './songs.service';
 import { FirebaseAuthGuard } from '../../auth/firebase-auth.guard';
 import type { AuthenticatedRequest } from '../../auth/types';
@@ -62,14 +65,26 @@ export class SongsController {
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
     FileInterceptor('file', {
+      // Write the uploaded file to /tmp instead of keeping it in memory.
+      // This is the primary RAM-saving measure: for a 50 MB WAV file the old
+      // MemoryStorage approach held all 50 MB in a Buffer while FFmpeg also
+      // processed it, easily pushing a 256 MB Cloud Function over its limit.
+      storage: diskStorage({
+        destination: os.tmpdir(),
+        filename: (_req, file, cb) => {
+          const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+          const ext = path.extname(file.originalname) || '';
+          cb(null, `upload-${unique}${ext}`);
+        },
+      }),
       limits: {
-        fileSize: 100 * 1024 * 1024, // 100MB
+        fileSize: 100 * 1024 * 1024, // 100 MB
       },
     }),
   )
   async uploadSong(
     @Req() req: AuthenticatedRequest,
-    @UploadedFile() file: any,
+    @UploadedFile() file: Express.Multer.File | undefined,
     @Body('metadata') metadataStr: string,
   ) {
     // Validate file presence
@@ -78,18 +93,7 @@ export class SongsController {
       throw new BadRequestException('File is required');
     }
 
-    // Type guard for file properties
-    const uploadedFile = file as {
-      buffer: Buffer;
-      mimetype: string;
-      originalname: string;
-      size: number;
-    };
-    if (
-      !uploadedFile.buffer ||
-      !uploadedFile.mimetype ||
-      !uploadedFile.originalname
-    ) {
+    if (!file.path || !file.mimetype || !file.originalname) {
       throw new BadRequestException('Invalid file format');
     }
 
@@ -111,15 +115,15 @@ export class SongsController {
     }
 
     this.logger.log(
-      `Song upload initiated. File size: ${uploadedFile.size} bytes`,
+      `Song upload initiated. File size: ${file.size} bytes, temp path: ${file.path}`,
     );
 
-    // Process upload with audio conversion
+    // Process upload with audio conversion (file is streamed from disk, low RAM)
     const data = await this.songsService.uploadSong(
       req.user.uid,
-      uploadedFile.buffer,
-      uploadedFile.mimetype,
-      uploadedFile.originalname,
+      file.path,
+      file.mimetype,
+      file.originalname,
       metadata,
     );
     return {
