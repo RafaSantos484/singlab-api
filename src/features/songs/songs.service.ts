@@ -6,12 +6,10 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import * as fs from 'fs/promises';
 import * as admin from 'firebase-admin';
 import type { Bucket } from '@google-cloud/storage';
 import { FirestoreProvider } from '../../infrastructure/database/firestore/firestore.provider';
 import { FirebaseAdminProvider } from '../../auth/firebase-admin.provider';
-import { AudioConversionService } from '../audio/audio-conversion.service';
 import { UploadSongDto, UploadSongSchema } from './dtos/upload-song.dto';
 import { UpdateSongDto, UpdateSongSchema } from './dtos/update-song.dto';
 import { DocumentReference, DocumentSnapshot } from 'firebase-admin/firestore';
@@ -192,17 +190,17 @@ export class Song {
 }
 
 /**
- * Service for managing song uploads and access.
+ * Service for managing songs.
  * Responsibilities:
  * - Metadata validation
- * - Audio conversion
- * - Storage upload
+ * - Storage file existence verification
  * - Firestore persistence
  * - On-demand signed URL generation for stored paths
  *
- * Uses two-phase approach for uploads:
- * 1. Convert audio and upload to Storage (can be rolled back by deletion)
- * 2. Persist metadata to Firestore
+ * Upload flow:
+ * The client is responsible for uploading the raw audio file to Storage.
+ * This service only validates that the file exists at the canonical path
+ * before persisting the song document to Firestore.
  *
  * URL Management Strategy:
  * - Generates signed URLs valid for 7 days based on stored paths
@@ -217,34 +215,29 @@ export class SongsService {
   constructor(
     firestoreProvider: FirestoreProvider,
     firebaseAdminProvider: FirebaseAdminProvider,
-    private readonly audioConversionService: AudioConversionService,
   ) {
     this.firestore = firestoreProvider.getFirestore();
     this.bucket = firebaseAdminProvider.getBucket();
   }
 
   /**
-   * Main upload orchestration method.
-   * Coordinates validation, conversion, storage, and persistence.
+   * Registers a new song by validating metadata and verifying that the raw
+   * file already exists in Cloud Storage before persisting the Firestore doc.
    *
-   * The file is read as a stream from the temporary path on disk so it is
-   * never fully loaded into memory. The temp file is removed after the
-   * operation completes (success or failure).
+   * The client is responsible for:
+   * 1. Pre-generating a `songId` (e.g. a Firestore client-side doc ID).
+   * 2. Uploading the raw audio file to Storage at
+   *    `users/:userId/songs/:songId/raw.mp3`.
+   * 3. Calling this endpoint with `{ songId, title, author }`.
    *
    * @param userId - User ID from Firebase Auth
-   * @param inputFilePath - Absolute path to the temp file written by multer
-   * @param mimetype - MIME type of uploaded file
-   * @param originalName - Original filename
-   * @param metadata - Song metadata (title, author)
-   * @returns Upload result with song ID and URLs
-   * @throws BadRequestException for validation errors
+   * @param metadata - Song metadata (songId, title, author)
+   * @returns Created song data with song ID and rawSongInfo
+   * @throws BadRequestException if metadata is invalid or raw file is missing
    * @throws HttpException for storage/database errors
    */
   async uploadSong(
     userId: string,
-    inputFilePath: string,
-    mimetype: string,
-    originalName: string,
     metadata: Record<string, unknown>,
   ): Promise<{
     songId: string;
@@ -252,72 +245,47 @@ export class SongsService {
     author: string;
     rawSongInfo: RawSongInfo;
   }> {
+    // 1. Validate metadata
+    const validatedData = this.validateMetadata(metadata);
+
+    // 2. Resolve doc reference using the client-provided songId
+    const songDocRef = this.firestore
+      .collection('users')
+      .doc(userId)
+      .collection('songs')
+      .doc(validatedData.songId);
+
+    // 3. Build canonical storage path and verify the file was uploaded
+    const storagePath = this.buildStoragePath(userId, validatedData.songId);
+    await this.verifyRawFileExists(storagePath);
+
+    // 4. Persist metadata to Firestore
+    const rawSongInfo: RawSongInfo = {
+      path: storagePath,
+      uploadedAt: new Date().toISOString(),
+    };
+
     try {
-      // 1. Validate metadata
-      const validatedData = this.validateMetadata(metadata);
-
-      // 2. Detect and validate file format
-      const fileFormat = this.audioConversionService.getFileFormat(
-        mimetype,
-        originalName,
-      );
-      this.validateFileFormat(fileFormat);
-
-      // 3. Generate document reference and storage path
-      const songDocRef = this.generateSongDocReference(userId);
-      const storagePath = this.buildStoragePath(userId, songDocRef.id);
-
-      // 4. Convert and upload to storage (streams from disk — no RAM spike)
-      const uploadedPath = await this.convertAndUploadAudio(
-        userId,
-        inputFilePath,
-        fileFormat,
-        storagePath,
-      );
-
-      // 5. Persist metadata to Firestore (store only the path)
-      const rawSongInfo: RawSongInfo = {
-        path: uploadedPath,
-        uploadedAt: new Date().toISOString(),
-      };
-
       await this.persistSongMetadata(songDocRef, validatedData, rawSongInfo);
-
-      this.logger.log(
-        `Song uploaded successfully for user: ${userId}, song ID: ${songDocRef.id}`,
-      );
-
-      return {
-        songId: songDocRef.id,
-        title: validatedData.title,
-        author: validatedData.author,
-        rawSongInfo,
-      };
     } catch (error) {
-      // Re-throw validation and HTTP exceptions
-      if (
-        error instanceof BadRequestException ||
-        error instanceof HttpException
-      ) {
-        throw error;
-      }
-
-      // Log and throw generic error
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Song upload failed for user ${userId}: ${errorMsg}`);
-
       throw new HttpException(
         'Failed to upload song',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
-    } finally {
-      // Always remove the temp file regardless of outcome to free disk space
-      await fs.unlink(inputFilePath).catch((err: unknown) => {
-        this.logger.warn(
-          `Failed to delete temp file ${inputFilePath}: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      });
     }
+
+    this.logger.log(
+      `Song registered successfully for user: ${userId}, song ID: ${validatedData.songId}`,
+    );
+
+    return {
+      songId: validatedData.songId,
+      title: validatedData.title,
+      author: validatedData.author,
+      rawSongInfo,
+    };
   }
 
   /**
@@ -341,44 +309,38 @@ export class SongsService {
   }
 
   /**
-   * Validates if file format is supported.
+   * Verifies that the raw audio file exists in Cloud Storage at the canonical
+   * path before allowing the Firestore document to be created.
    *
-   * @param fileFormat - File format string
-   * @throws BadRequestException if format is not supported or unknown
+   * @param storagePath - Expected storage path (`users/:uid/songs/:id/raw.mp3`)
+   * @throws BadRequestException if the file is not found
+   * @throws HttpException if the storage check itself fails
    */
-  private validateFileFormat(fileFormat: string): void {
-    if (fileFormat === 'unknown') {
-      throw new BadRequestException(
-        'Unable to detect file format. Please ensure the file has a valid extension.',
+  private async verifyRawFileExists(storagePath: string): Promise<void> {
+    try {
+      const [exists] = await this.bucket.file(storagePath).exists();
+      if (!exists) {
+        throw new BadRequestException(
+          `Raw audio file not found in storage. Upload the file to '${storagePath}' before registering the song.`,
+        );
+      }
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `Storage existence check failed for path ${storagePath}: ${errorMsg}`,
       );
-    }
-
-    if (!this.audioConversionService.isSupportedFormat(fileFormat)) {
-      const supported = this.audioConversionService.getSupportedFormatsString();
-      throw new BadRequestException(
-        `Unsupported file format: ${fileFormat}. Supported: ${supported}`,
+      throw new HttpException(
+        'Failed to verify raw audio file in storage',
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
 
   /**
-   * Generates a new Firestore document reference for song.
-   *
-   * @param userId - User ID
-   * @returns Firestore document reference
-   */
-  private generateSongDocReference(
-    userId: string,
-  ): admin.firestore.DocumentReference {
-    return this.firestore
-      .collection('users')
-      .doc(userId)
-      .collection('songs')
-      .doc();
-  }
-
-  /**
-   * Builds storage path for the converted audio file.
+   * Builds storage path for the raw audio file.
    * Uses a canonical path format for reliable cleanup and URL refresh.
    *
    * @param userId - User ID
@@ -405,51 +367,11 @@ export class SongsService {
   }
 
   /**
-   * Converts audio and uploads to Cloud Storage.
-   * Streams from the temp file on disk — no full-file Buffer in RAM.
-   *
-   * @param userId - User ID (for logging)
-   * @param inputFilePath - Absolute path to the temp file on disk
-   * @param fileFormat - Detected format
-   * @param storagePath - Target storage path
-   * @returns Path where file was stored
-   * @throws Error if conversion or upload fails
-   */
-  private async convertAndUploadAudio(
-    userId: string,
-    inputFilePath: string,
-    fileFormat: string,
-    storagePath: string,
-  ): Promise<string> {
-    try {
-      this.logger.debug(
-        `Converting audio format ${fileFormat} to MP3 for user ${userId}`,
-      );
-
-      const result =
-        await this.audioConversionService.convertAndStreamToStorage(
-          inputFilePath,
-          fileFormat,
-          storagePath,
-        );
-
-      return result.path;
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(
-        `Audio conversion/upload failed for user ${userId}: ${errorMsg}`,
-      );
-      throw new Error(`Audio conversion failed: ${errorMsg}`);
-    }
-  }
-
-  /**
    * Persists song metadata to Firestore.
-   * On failure, does NOT attempt cleanup (caller responsibility).
    *
    * @param docRef - Firestore document reference
    * @param metadata - Song metadata
-   * @param rawSongInfo - Storage info (path and URL) to be persisted
+   * @param rawSongInfo - Storage info (path and uploadedAt) to be persisted
    * @throws Error if persistence fails
    */
   private async persistSongMetadata(
@@ -629,20 +551,41 @@ export class SongsService {
     }
 
     try {
-      // 2. Build storage path for cleanup
-      const storagePath = this.buildStoragePath(userId, songId);
+      // 2. Build storage prefix to delete all files for this song
+      const storagePrefix = `users/${userId}/songs/${songId}/`;
 
-      // 3. Delete file from Cloud Storage
+      // 3. Delete all files from Cloud Storage with this prefix
       try {
-        await this.bucket.file(storagePath).delete();
-        this.logger.debug(`Deleted storage file: ${storagePath}`);
+        const [files] = await this.bucket.getFiles({ prefix: storagePrefix });
+
+        if (files.length > 0) {
+          await Promise.all(
+            files.map((file) =>
+              file.delete().catch((error) => {
+                // Log but don't fail if individual file deletion fails
+                this.logger.warn(
+                  `Failed to delete storage file ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                );
+              }),
+            ),
+          );
+          this.logger.debug(
+            `Deleted ${files.length} storage file(s) with prefix: ${storagePrefix}`,
+          );
+        } else {
+          this.logger.debug(
+            `No storage files found with prefix: ${storagePrefix}`,
+          );
+        }
       } catch (storageError) {
-        // Log but don't fail if file doesn't exist
+        // Log but don't fail if files don't exist
         if (
           storageError instanceof Error &&
           !storageError.message.includes('not found')
         ) {
-          this.logger.warn(`Could not delete storage file ${storagePath}`);
+          this.logger.warn(
+            `Could not delete storage files with prefix ${storagePrefix}: ${storageError.message}`,
+          );
         }
       }
 

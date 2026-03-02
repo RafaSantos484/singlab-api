@@ -5,21 +5,15 @@ import {
   Delete,
   Patch,
   Param,
-  UseInterceptors,
-  UploadedFile,
   Body,
   UseGuards,
   Req,
-  BadRequestException,
   HttpCode,
   HttpStatus,
   Logger,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import * as os from 'os';
-import * as path from 'path';
 import { SongsService } from './songs.service';
 import { FirebaseAuthGuard } from '../../auth/firebase-auth.guard';
 import type { AuthenticatedRequest } from '../../auth/types';
@@ -37,95 +31,46 @@ export class SongsController {
   constructor(private readonly songsService: SongsService) {}
 
   /**
-   * Uploads a new song.
+   * Registers a new song document.
    *
-   * Expects multipart/form-data with:
-   * - file: audio or video file (mp3, wav, ogg, webm, mp4, mov, etc.)
-   * - metadata: JSON string containing title and author
+   * The client must:
+   * 1. Pre-generate a `songId` (e.g. a Firestore client-side doc ID).
+   * 2. Upload the raw audio file to Cloud Storage at
+   *    `users/:userId/songs/:songId/raw.mp3`.
+   * 3. Call this endpoint with `{ songId, title, author }`.
    *
-   * File size limit: 100MB (enforced at interceptor level)
+   * The API validates the metadata, verifies the raw file exists at the
+   * canonical Storage path, then persists the Firestore document.
    *
    * Example request:
    * ```
    * POST /songs/upload
-   * Content-Type: multipart/form-data
+   * Content-Type: application/json
    *
-   * file: [binary file content]
-   * metadata: {"title": "Song Name", "author": "Artist Name"}
+   * { "songId": "abc123", "title": "Song Name", "author": "Artist Name" }
    * ```
    *
    * @param req - Request with authenticated user
-   * @param file - Uploaded file
-   * @param metadataStr - JSON string with title and author
-   * @returns Song object with ID, metadata, rawSongInfo containing storage path
-   * @throws BadRequestException if validation fails
-   * @throws HttpException if upload/conversion fails
+   * @param body - JSON body with songId, title and author
+   * @returns Song object with ID, metadata, and rawSongInfo
+   * @throws BadRequestException if validation fails or raw file is missing
+   * @throws HttpException if database operation fails
    */
   @Post('upload')
   @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(
-    FileInterceptor('file', {
-      // Write the uploaded file to /tmp instead of keeping it in memory.
-      // This is the primary RAM-saving measure: for a 50 MB WAV file the old
-      // MemoryStorage approach held all 50 MB in a Buffer while FFmpeg also
-      // processed it, easily pushing a 256 MB Cloud Function over its limit.
-      storage: diskStorage({
-        destination: os.tmpdir(),
-        filename: (_req, file, cb) => {
-          const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-          const ext = path.extname(file.originalname) || '';
-          cb(null, `upload-${unique}${ext}`);
-        },
-      }),
-      limits: {
-        fileSize: 100 * 1024 * 1024, // 100 MB
-      },
-    }),
-  )
   async uploadSong(
     @Req() req: AuthenticatedRequest,
-    @UploadedFile() file: Express.Multer.File | undefined,
-    @Body('metadata') metadataStr: string,
+    @Body() body: Record<string, unknown>,
   ) {
-    // Validate file presence
-    if (!file || typeof file !== 'object') {
-      this.logger.debug('Upload attempt without file');
-      throw new BadRequestException('File is required');
-    }
-
-    if (!file.path || !file.mimetype || !file.originalname) {
-      throw new BadRequestException('Invalid file format');
-    }
-
-    // Validate metadata presence
-    if (!metadataStr) {
-      this.logger.debug('Upload attempt without metadata');
-      throw new BadRequestException('Metadata JSON is required');
-    }
-
-    // Parse metadata JSON
-    let metadata: Record<string, unknown>;
-    try {
-      metadata = JSON.parse(metadataStr);
-    } catch {
-      this.logger.debug('Invalid JSON metadata provided');
+    if (!body || Object.keys(body).length === 0) {
       throw new BadRequestException(
-        'Metadata must be valid JSON with title and author fields',
+        'Request body with title and author is required',
       );
     }
 
-    this.logger.log(
-      `Song upload initiated. File size: ${file.size} bytes, temp path: ${file.path}`,
-    );
+    this.logger.log(`Song registration initiated for user: ${req.user.uid}`);
 
-    // Process upload with audio conversion (file is streamed from disk, low RAM)
-    const data = await this.songsService.uploadSong(
-      req.user.uid,
-      file.path,
-      file.mimetype,
-      file.originalname,
-      metadata,
-    );
+    const data = await this.songsService.uploadSong(req.user.uid, body);
     return {
       success: true,
       data,
