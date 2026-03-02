@@ -6,6 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import * as fs from 'fs/promises';
 import * as admin from 'firebase-admin';
 import type { Bucket } from '@google-cloud/storage';
 import { FirestoreProvider } from '../../infrastructure/database/firestore/firestore.provider';
@@ -226,8 +227,12 @@ export class SongsService {
    * Main upload orchestration method.
    * Coordinates validation, conversion, storage, and persistence.
    *
+   * The file is read as a stream from the temporary path on disk so it is
+   * never fully loaded into memory. The temp file is removed after the
+   * operation completes (success or failure).
+   *
    * @param userId - User ID from Firebase Auth
-   * @param fileBuffer - File content as buffer
+   * @param inputFilePath - Absolute path to the temp file written by multer
    * @param mimetype - MIME type of uploaded file
    * @param originalName - Original filename
    * @param metadata - Song metadata (title, author)
@@ -237,7 +242,7 @@ export class SongsService {
    */
   async uploadSong(
     userId: string,
-    fileBuffer: Buffer,
+    inputFilePath: string,
     mimetype: string,
     originalName: string,
     metadata: Record<string, unknown>,
@@ -262,10 +267,10 @@ export class SongsService {
       const songDocRef = this.generateSongDocReference(userId);
       const storagePath = this.buildStoragePath(userId, songDocRef.id);
 
-      // 4. Convert and upload to storage
+      // 4. Convert and upload to storage (streams from disk — no RAM spike)
       const uploadedPath = await this.convertAndUploadAudio(
         userId,
-        fileBuffer,
+        inputFilePath,
         fileFormat,
         storagePath,
       );
@@ -305,6 +310,13 @@ export class SongsService {
         'Failed to upload song',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
+    } finally {
+      // Always remove the temp file regardless of outcome to free disk space
+      await fs.unlink(inputFilePath).catch((err: unknown) => {
+        this.logger.warn(
+          `Failed to delete temp file ${inputFilePath}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
     }
   }
 
@@ -394,9 +406,10 @@ export class SongsService {
 
   /**
    * Converts audio and uploads to Cloud Storage.
+   * Streams from the temp file on disk — no full-file Buffer in RAM.
    *
    * @param userId - User ID (for logging)
-   * @param fileBuffer - File content
+   * @param inputFilePath - Absolute path to the temp file on disk
    * @param fileFormat - Detected format
    * @param storagePath - Target storage path
    * @returns Path where file was stored
@@ -404,7 +417,7 @@ export class SongsService {
    */
   private async convertAndUploadAudio(
     userId: string,
-    fileBuffer: Buffer,
+    inputFilePath: string,
     fileFormat: string,
     storagePath: string,
   ): Promise<string> {
@@ -415,7 +428,7 @@ export class SongsService {
 
       const result =
         await this.audioConversionService.convertAndStreamToStorage(
-          fileBuffer,
+          inputFilePath,
           fileFormat,
           storagePath,
         );
