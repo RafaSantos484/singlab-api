@@ -13,8 +13,8 @@ The audio module handles conversion of various audio and video formats to MP3, w
    - Ensures single instance across the application
 
 2. **Efficient Stream Processing**
-   - Streams audio directly from buffer to Cloud Storage
-   - Minimizes memory footprint by avoiding large buffer accumulation
+   - Streams audio directly from a temp file on disk to Cloud Storage
+   - File bytes are never fully loaded into RAM (multer writes to `/tmp`, FFmpeg reads via `fs.createReadStream`)
    - Uses Node.js streams and Google Cloud Storage write streams
 
 3. **Timeout Protection**
@@ -58,7 +58,7 @@ if (!service.isSupportedFormat(format)) {
 
 // Convert and stream to storage
 const result = await service.convertAndStreamToStorage(
-  buffer,
+  inputFilePath,  // absolute path to temp file on disk
   format,
   storagePath
 );
@@ -76,9 +76,10 @@ const result = await service.convertAndStreamToStorage(
 - `getSupportedFormatsString(): string`
   - Returns comma-separated list of supported formats (useful for error messages)
 
-- `convertAndStreamToStorage(buffer, format, path): Promise<{path, extension}>`
+- `convertAndStreamToStorage(inputFilePath, format, path): Promise<{path, extension}>`
   - Main conversion method
-  - Streams directly to Cloud Storage to minimize memory usage
+  - Reads from temp file on disk via `fs.createReadStream` and pipes directly to Cloud Storage
+  - Applies FFmpeg memory constraints (`-threads 1`, `-probesize 1M`, `-analyzeduration 1M`)
   - Includes 30-second timeout
   - Returns storage path where file was written
 
@@ -98,9 +99,9 @@ constructor(
 // Format detection
 const format = this.audioConversionService.getFileFormat(mimetype, originalName);
 
-// Conversion with streaming
+# Conversion: streams from temp file on disk — no full-file Buffer in RAM
 const { path } = await this.audioConversionService.convertAndStreamToStorage(
-  buffer,
+  inputFilePath,  // absolute path written by multer diskStorage
   format,
   storagePath,
 );
@@ -139,6 +140,16 @@ FFmpeg configuration for MP3 conversion:
 - **Channels:** 2 (stereo)
 - **Frequency:** 44100 Hz
 - **Timeout:** 30 seconds
+
+### Memory Constraints
+
+Applied to every conversion to stay within Cloud Functions' default 256 MB RAM:
+
+| Option | Value | Purpose |
+|--------|-------|---------|
+| `-threads` | `1` | Single CPU thread — reduces per-thread stack/buffer allocations by 10–30 MB |
+| `-probesize` | `1M` | Limits the data FFmpeg reads to detect the container format |
+| `-analyzeduration` | `1M` | Caps stream-analysis time, complementing probe size |
 
 ## Dependencies
 
@@ -183,7 +194,8 @@ The old `src/features/songs/utils/audio-conversion.util.ts` has been replaced by
 - ❌ Old: Memory accumulation in buffers
 - ❌ Old: Potential race conditions in FFmpeg initialization
 - ❌ Old: No timeout protection
-- ✅ New: Direct stream-to-storage pipeline
+- ✅ New: `diskStorage` + `fs.createReadStream` — file never held in RAM as a Buffer
+- ✅ New: FFmpeg memory constraints (`-threads 1`, `-probesize 1M`) applied
 - ✅ New: Thread-safe FFmpeg provider
 - ✅ New: 30-second timeout protection
 - ✅ New: Better error handling
@@ -200,7 +212,7 @@ const result = await AudioConversionUtil.convertToMp3(buffer, format);
 import { AudioConversionService } from 'src/features/audio/audio-conversion.service';
 @Module({ imports: [AudioModule] })
 constructor(private audioService: AudioConversionService) {}
-const result = await this.audioService.convertAndStreamToStorage(buffer, format, path);
+const result = await this.audioService.convertAndStreamToStorage(inputFilePath, format, path);
 ```
 
 The old utility will be removed in v2.0.0.

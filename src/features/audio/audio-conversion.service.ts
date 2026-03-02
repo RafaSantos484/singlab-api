@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Readable } from 'stream';
+import * as fs from 'fs';
 import type { Bucket, File } from '@google-cloud/storage';
 import { FirebaseAdminProvider } from '../../auth/firebase-admin.provider';
 import { FFmpegProvider } from './ffmpeg.provider';
@@ -67,16 +67,22 @@ export class AudioConversionService {
 
   /**
    * Converts and streams audio/video directly to Cloud Storage.
-   * Uses stream pipeline to minimize memory footprint.
+   * Reads the source file from disk as a stream — the file bytes are never
+   * fully loaded into RAM, which keeps memory usage low in constrained
+   * environments such as Cloud Functions with 256 MB.
    *
-   * @param fileBuffer - Original file buffer (video or audio)
+   * FFmpeg memory constraints applied:
+   * - `-threads 1`      : single CPU thread to avoid thread-local buffer overhead
+   * - Low probe size    : limits the amount of data FFmpeg reads to detect format
+   *
+   * @param inputFilePath - Absolute path to the temp file on disk
    * @param inputFormat - Original file format (e.g., 'mp4', 'wav', 'webm')
    * @param storagePath - Destination path in Cloud Storage
    * @returns File path in storage
    * @throws Error if conversion fails or times out
    */
   async convertAndStreamToStorage(
-    fileBuffer: Buffer,
+    inputFilePath: string,
     inputFormat: string,
     storagePath: string,
   ): Promise<{ path: string; extension: string }> {
@@ -87,8 +93,8 @@ export class AudioConversionService {
       );
 
       try {
-        // Create input stream from buffer
-        const inputStream = Readable.from(fileBuffer);
+        // Stream from disk — no Buffer held in memory
+        const inputStream = fs.createReadStream(inputFilePath);
 
         // Create writable stream to storage (no buffering in memory)
         const writeStream = this.bucket.file(storagePath).createWriteStream({
@@ -106,6 +112,12 @@ export class AudioConversionService {
 
             command
               .inputFormat(inputFormat.toLowerCase())
+              // Limit probe size so FFmpeg doesn't buffer large chunks just to
+              // detect the format. 1 MB is enough for all common containers.
+              .inputOptions(['-probesize 1M', '-analyzeduration 1M'])
+              // Single thread: reduces per-thread stack and buffer allocations
+              // which can collectively add 10–30 MB on multi-core instances.
+              .outputOptions(['-threads 1'])
               .audioCodec('libmp3lame')
               .audioBitrate(AudioConversionService.BITRATE)
               .audioChannels(2)
