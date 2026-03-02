@@ -1,31 +1,31 @@
 # Songs Feature Module
 
-Module responsible for song upload and management with automatic audio conversion and metadata persistence using Firestore transactions.
+Module responsible for song metadata registration and management. The client is responsible for uploading the raw audio file to Firebase Storage; this module validates that the file exists and persists the Firestore document.
 
 ## Features
 
-### 1. Song Upload
-- Accepts audio files (MP3, WAV, OGG, WebM, AAC, FLAC, M4A, WMA, Opus) or video (MP4, WebM, MOV)
-- Automatically converts file to standard MP3 format
-- **Low-memory pipeline**: multer writes the uploaded file to `/tmp` (disk); FFmpeg reads it as a stream — file bytes are never held in RAM as a Buffer
-- Validates metadata using Zod schema (title, author)
-- Temp file is always deleted from disk after the operation (success or failure)
+### 1. Song Registration
+- Client pre-generates a `songId` and uploads the audio file to Storage at the canonical path
+- API validates the metadata (`songId`, `title`, `author`) using Zod schema
+- API verifies that the file exists at `users/:userId/songs/:songId/raw.mp3` before creating the document
+- No server-side audio conversion — the client is responsible for providing a compatible MP3
 
 ### 2. Storage
 - **Firestore**: Document with metadata at `/users/{userId}/songs/{songId}`
   - `title`: Song title
   - `author`: Artist/Author
   - `rawSongInfo`: Object with raw file information
-    - `path`: Storage path of the converted MP3 (e.g. `users/{userId}/songs/{songId}/raw.mp3`)
-  - `status`: Processing state ('processing' → 'ready')
-  - `format`: Final format ('mp3')
+    - `path`: Storage path of the raw MP3 (e.g. `users/{userId}/songs/{songId}/raw.mp3`)
+    - `uploadedAt`: ISO timestamp of registration
 
-- **Firebase Storage**: Converted file at `/users/{userId}/songs/{songId}/raw.mp3`
+- **Firebase Storage**: Raw audio file at `/users/{userId}/songs/{songId}/raw.mp3`
+  - Uploaded by the client before calling `POST /songs/upload`
+  - On deletion, all files under `users/{userId}/songs/{songId}/` are removed (raw + stems)
 
 ### 3. On-demand signed URLs
 - Signed URLs are generated only when requested (valid for 7 days)
 - Use `GET /songs/:songId/raw/url` to obtain a fresh URL based on the stored path
-- No expiration metadata is stored; clients always fetch a new URL when needed
+- No expiration metadata is stored; clients fetch a new URL when needed
 
 **Invariants:**
 - Storage path is always `users/{userId}/songs/{songId}/raw.mp3` (used for cleanup and URL generation).
@@ -35,22 +35,17 @@ Module responsible for song upload and management with automatic audio conversio
 
 ```
 src/features/songs/
-├── songs.module.ts              # NestJS module (imports AudioModule)
+├── songs.module.ts              # NestJS module
 ├── songs.controller.ts          # HTTP endpoints
 ├── songs.service.ts             # Business logic
 ├── dtos/
 │   └── upload-song.dto.ts      # Zod schemas + types
 ├── utils/
-│   └── audio-conversion.util.ts # ❌ DEPRECATED - Use AudioModule instead
+│   └── audio-conversion.util.ts # ❌ DEPRECATED
 └── index.ts                      # Public exports
 ```
 
 ### Module Dependencies
-
-- **AudioModule** (src/features/audio/)
-  - Provides `AudioConversionService` for audio conversion
-  - Responsible for format detection and MP3 conversion
-  - Implements FFmpeg with thread-safety and timeout
 
 - **DatabaseModule** (src/infrastructure/database/)
   - Provides Firestore access
@@ -58,15 +53,23 @@ src/features/songs/
 
 ## Endpoints
 
-### 1. Upload Song
+### 1. Register Song
 ```http
 POST /songs/upload
-Content-Type: multipart/form-data
+Content-Type: application/json
 Authorization: <Firebase Auth Token>
 
-file: <audio/video file>
-metadata: {"title": "Song Name", "author": "Artist Name"}
+{
+  "songId": "abc123",
+  "title": "Song Name",
+  "author": "Artist Name"
+}
 ```
+
+**Prerequisites:**
+1. Generate a `songId` (e.g. Firestore client-side document ID).
+2. Upload the raw audio file to Firebase Storage at `users/:userId/songs/:songId/raw.mp3`.
+3. Call this endpoint to register the document in Firestore.
 
 **Response (201 Created):**
 ```json
@@ -77,10 +80,17 @@ metadata: {"title": "Song Name", "author": "Artist Name"}
     "title": "Song Name",
     "author": "Artist Name",
     "rawSongInfo": {
-      "path": "users/abc123/songs/xyz/raw.mp3"
+      "path": "users/abc123/songs/xyz/raw.mp3",
+      "uploadedAt": "2026-03-02T00:00:00.000Z"
     }
   }
 }
+```
+
+**Errors:**
+- `400 Bad Request`: Validation failed or raw file not found in Storage
+- `401 Unauthorized`: Missing or invalid Firebase token
+- `500 Internal Server Error`: Storage check or database failure
 ```
 
 ### 2. Get Song by ID
@@ -94,14 +104,13 @@ Authorization: <Firebase Auth Token>
 {
   "success": true,
   "data": {
-    "id": "abc123",
     "title": "Song Name",
     "author": "Artist Name",
     "rawSongInfo": {
-      "path": "users/abc123/songs/xyz/raw.mp3"
+      "path": "users/abc123/songs/xyz/raw.mp3",
+      "uploadedAt": "2026-03-02T00:00:00.000Z"
     },
-    "status": "ready",
-    "format": "mp3"
+    "separatedSongInfo": null
   }
 }
 ```
@@ -118,14 +127,13 @@ Authorization: <Firebase Auth Token>
   "success": true,
   "data": [
     {
-      "id": "abc123",
       "title": "Song Name",
       "author": "Artist Name",
       "rawSongInfo": {
-        "path": "users/abc123/songs/xyz/raw.mp3"
+        "path": "users/abc123/songs/xyz/raw.mp3",
+        "uploadedAt": "2026-03-02T00:00:00.000Z"
       },
-      "status": "ready",
-      "format": "mp3"
+      "separatedSongInfo": null
     }
   ],
   "total": 1
@@ -239,32 +247,13 @@ Result: Only title is updated, other fields are ignored
 - `404 Not Found`: Song does not exist
 - `500 Internal Server Error`: Update error
 
-### 7. Delete Song (DELETE)
-```http
-DELETE /songs/:songId
-Authorization: <Firebase Auth Token>
-```
-
-Deletes the song and its associated file from Cloud Storage.
-
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "message": "Song deleted successfully"
-}
-```
-
-**Errors:**
-- `404 Not Found`: Song does not exist
-- `500 Internal Server Error`: Error deleting file/document
-
 ## Zod Validation
 
-The module automatically validates song metadata:
+The module automatically validates song registration metadata:
 
 ```typescript
 {
+  songId: string   // 1-128 characters
   title: string    // 1-255 characters
   author: string   // 1-255 characters
 }
@@ -276,48 +265,6 @@ Validation errors return `400 Bad Request`:
   "statusCode": 400,
   "message": "Invalid song data: Title is required; Author must be at most 255 characters"
 }
-```
-
-## Audio Conversion
-
-Uses FFmpeg to automatically convert to MP3:
-
-- **Input**: MP3, WAV, OGG, WebM, MP4, MOV, AAC, FLAC, M4A, WMA, Opus
-- **Output**: MP3 (128 kbps, 44.1 kHz, 2 channels)
-- **Storage**: `/users/{userId}/songs/{songId}/raw.mp3`
-
-### Supported Formats
-
-**Audio:**
-- MP3
-- WAV
-- OGG
-- WebM
-- AAC
-- FLAC
-- M4A
-- WMA
-- Opus
-
-**Video (extracts audio):**
-- MP4
-- WebM
-- MOV
-
-## Firestore Transactions
-
-All operations are executed in atomic transactions to ensure consistency:
-
-1. ✅ Create Firestore document with metadata
-2. ✅ Upload converted file to Storage
-3. ✅ Generate signed URL
-4. ✅ Update document with Storage URL
-5. ❌ If any step fails, entire transaction is rolled back
-
-**Benefits:**
-- No orphaned documents without files
-- No orphaned files without documents
-- Guaranteed consistency between Firestore and Storage
 
 ## Configuration
 
@@ -367,9 +314,8 @@ The Songs module uses a standardized error response format with error codes and 
 
 | HTTP Status | Code | Cause | Notes |
 |-------------|------|-------|-------|
-| 400 | `INVALID_SONG_DATA` | Metadata validation failed | Check your JSON format, title/author fields |
-| 400 | `UNSUPPORTED_FILE_FORMAT` | File format not supported | Upload mp3, wav, ogg, webm, mp4, mov, etc. |
-| 400 | `BAD_REQUEST` | File or metadata missing | Both `file` and `metadata` fields required |
+| 400 | `INVALID_SONG_DATA` | Metadata validation failed | Check songId, title, author fields |
+| 400 | `BAD_REQUEST` | Raw file not found in Storage | Upload the file to Storage before calling this endpoint |
 | 401 | `UNAUTHORIZED` | No auth token | Firebase token missing or invalid |
 | 404 | `SONG_NOT_FOUND` | Song doesn't exist or doesn't belong to user | Check songId and authentication |
 | 500 | `INTERNAL_SERVER_ERROR` | Unexpected server error | Check logs for details using requestId |
@@ -382,17 +328,25 @@ Every error response includes a `requestId` that matches server-side logs. Use t
 ### JavaScript/TypeScript
 
 ```typescript
-const uploadSong = async (file: File, title: string, author: string, authToken: string) => {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('metadata', JSON.stringify({ title, author }));
+import { getStorage, ref, uploadBytes } from 'firebase/storage';
+import { getFirestore, doc } from 'firebase/firestore';
 
+const registerSong = async (file: File, title: string, author: string, authToken: string) => {
+  const storage = getStorage();
+  const songId = doc(getFirestore(), 'dummy').id; // generate a client-side ID
+
+  // 1. Upload raw audio to Firebase Storage
+  const storageRef = ref(storage, `users/${userId}/songs/${songId}/raw.mp3`);
+  await uploadBytes(storageRef, file);
+
+  // 2. Register metadata with the API
   const response = await fetch('/songs/upload', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${authToken}`,
+      'Content-Type': 'application/json',
     },
-    body: formData,
+    body: JSON.stringify({ songId, title, author }),
   });
 
   if (!response.ok) {
@@ -409,8 +363,8 @@ const uploadSong = async (file: File, title: string, author: string, authToken: 
 ```bash
 curl -X POST http://localhost:5001/songs/upload \
   -H "Authorization: Bearer <firebase-token>" \
-  -F "file=@music.mp3" \
-  -F 'metadata={"title":"My Song","author":"My Name"}'
+  -H "Content-Type: application/json" \
+  -d '{"songId": "abc123", "title": "My Song", "author": "My Name"}'
 ```
 
 ## Local Development
@@ -442,64 +396,19 @@ Access: `http://localhost:5001`
 npm run serve
 ```
 
-## Legacy Code Migration
+## Legacy Code
 
 ### AudioConversionUtil (DEPRECATED)
 
-The `audio-conversion.util.ts` utility has been replaced by `AudioConversionService` for better architecture and performance.
-
-**Migration reasons:**
-- ✅ Thread-safe FFmpeg initialization
-- ✅ Disk-based upload: multer `diskStorage` — file never accumulated in RAM
-- ✅ Direct stream-to-storage pipeline (eliminates memory accumulation)
-- ✅ FFmpeg memory constraints (`-threads 1`, `-probesize 1M`)
-- ✅ Timeout protection (30 seconds)
-- ✅ Better error handling
-- ✅ NestJS dependency injection pattern
-
-**How to migrate your code:**
-
-If you're still using `AudioConversionUtil`:
-
-```typescript
-// ❌ BEFORE (deprecated)
-import { AudioConversionUtil } from 'src/features/songs/utils/audio-conversion.util';
-
-const result = await AudioConversionUtil.convertToMp3(buffer, format);
-```
-
-```typescript
-// ✅ AFTER
-import { AudioConversionService } from 'src/features/audio/audio-conversion.service';
-
-constructor(private audioConversionService: AudioConversionService) {}
-
-// Replace convertToMp3() with convertAndStreamToStorage()
-const result = await this.audioConversionService.convertAndStreamToStorage(
-  inputFilePath,  // absolute path to temp file written by multer diskStorage
-  format,
-  storagePath
-);
-
-// Replace other methods
-const format = this.audioConversionService.getFileFormat(mimetype, filename);
-const isSupported = this.audioConversionService.isSupportedFormat(format);
-```
-
-**Timeline:**
-- v1.x: AudioConversionUtil marked as @deprecated
-- v2.0: Complete removal
+The `audio-conversion.util.ts` utility is deprecated and kept for reference only.
 
 ## Future Improvements
 
 - [x] ~~Signed URL caching~~ → **Auto-refresh implemented**
-- [ ] Asynchronous processing with Cloud Tasks (for larger files)
+- [x] ~~Client-side upload flow~~ → **Implemented**
 - [ ] Metadata normalization (ID3 tags)
 - [ ] Automatic BPM detection
-- [ ] Automatic vocal/instrumental separation (stems)
-- [ ] Karaoke generation with vocal removal
-- [ ] Configurable file size limit
-- [ ] Adaptive audio compression based on device
+- [ ] Configurable file size limits
 - [ ] Support for multiple quality versions (bitrates)
 
 ## Monitoring
@@ -507,31 +416,21 @@ const isSupported = this.audioConversionService.isSupportedFormat(format);
 Important logs for monitoring:
 
 ```
-[SongsService] Song upload initiated...
-[SongsService] Converting audio (mp4) to MP3 for user <id>
-[SongsService] File uploaded to users/<id>/songs/<id>/raw.mp3
-[SongsService] Song uploaded successfully. User: <id>, Song ID: <id>
+[SongsController] Song registration initiated for user: <id>
+[SongsService] Song registered successfully for user: <id>, song ID: <id>
 [SongsService] Song upload failed for user <id>: <error>
+[SongsService] Storage existence check failed for path <path>: <error>
 ```
 
 ## Troubleshooting
 
-### FFmpeg not found
-- Install FFmpeg: `brew install ffmpeg` (macOS) or `choco install ffmpeg` (Windows)
-- Manually configure path if necessary
-
-### Storage permission error
-- Verify Firebase Storage security rules
-- Confirm `APP_FIREBASE_STORAGE_BUCKET` is configured
-
-### Firestore transaction error
-- Limit of 500 operations per transaction not exceeded (unlikely)
-- Try again; may be temporary connectivity error
+### Raw file not found (400)
+- Ensure the audio file is uploaded to `users/:userId/songs/:songId/raw.mp3` in Firebase Storage **before** calling `POST /songs/upload`
+- Verify the `songId` in the request body matches the one used for the Storage upload
 
 ## References
 
 - [Firebase Admin SDK - Firestore](https://firebase.google.com/docs/firestore)
 - [Firebase Admin SDK - Storage](https://firebase.google.com/docs/storage)
+- [Firebase Storage - Client Upload](https://firebase.google.com/docs/storage/web/upload-files)
 - [Zod Documentation](https://zod.dev)
-- [NestJS File Upload](https://docs.nestjs.com/techniques/file-upload)
-- [FFmpeg Documentation](https://ffmpeg.org/documentation.html)
