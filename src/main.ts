@@ -26,23 +26,9 @@ const expressApp = express();
 // Configure Express middlewares
 expressApp.use(cors({ origin: Env.corsOrigin }));
 
-// Body parser with 50kb limit for most routes
-// Routes that need larger payloads (audio files, large JSON) are handled by multer
-expressApp.use((req, res, next) => {
-  // Skip body parser for upload routes
-  if (req.path.includes('/upload')) {
-    return next();
-  }
-  express.json({ limit: '50kb' })(req, res, next);
-});
-
-expressApp.use((req, res, next) => {
-  // Skip urlencoded parser for upload routes
-  if (req.path.includes('/upload')) {
-    return next();
-  }
-  express.urlencoded({ extended: true, limit: '50kb' })(req, res, next);
-});
+// Body parser with configurable limit for JSON payloads
+expressApp.use(express.json({ limit: '100kb' }));
+expressApp.use(express.urlencoded({ extended: true, limit: '100kb' }));
 
 expressApp.use((req, _res, next) => {
   if (req.body) {
@@ -135,7 +121,7 @@ if (Env.nodeEnv === 'dev' || Env.nodeEnv === 'local') {
     expressApp.listen(port, () => {
       logger.log(`🌐 HTTP Server running on http://localhost:${port}`);
       logger.log(`🔒 CORS configured for: ${JSON.stringify(Env.corsOrigin)}`);
-      logger.log(`🎵 SingLab API - Ready to accept song uploads`);
+      logger.log(`🎵 SingLab API - Ready to serve requests`);
     });
   });
 } else if (Env.nodeEnv === 'production') {
