@@ -42,19 +42,21 @@ export class CustomBusinessError extends DomainError {
 Throw domain errors from services when business logic fails:
 
 ```typescript
-import { SongNotFoundError, SeparationConflictError } from '@/common/errors';
+import { SeparationConflictError } from '@/common/errors';
 
 @Injectable()
-export class SongsService {
-  async getSongById(userId: string, songId: string): Promise<Song> {
-    const song = await this.repository.findById(songId);
-    if (!song || song.userId !== userId) {
-      throw new SongNotFoundError(
-        `Song with ID ${songId} not found`,
-        { songId, userId }  // Debugging details (not exposed to client)
+export class SeparationsService {
+  async submitSeparation(
+    audioUrl: string,
+    title: string,
+  ): Promise<ProviderResponse> {
+    if (isConflict) {
+      throw new SeparationConflictError(
+        'Task already in progress',
+        { audioUrl }  // Debugging details (not exposed to client)
       );
     }
-    return song;
+    return this.provider.submit(audioUrl, title);
   }
 }
 ```
@@ -65,7 +67,6 @@ The following domain errors are available:
 
 | Error Class | HTTP Status | Code | Use Case |
 |-------------|------------|------|----------|
-| `SongNotFoundError` | 404 | `SONG_NOT_FOUND` | Song does not exist or doesn't belong to user |
 | `SeparationConflictError` | 409 | `SEPARATION_CONFLICT` | Separation already exists for this song |
 | `SeparationProviderError` | 502 | `SEPARATION_PROVIDER_ERROR` | Provider failed during request |
 | `SeparationProviderUnavailableError` | 503 | `SEPARATION_PROVIDER_UNAVAILABLE` | Provider is temporarily unavailable |
@@ -78,10 +79,10 @@ Use `HttpException` from `@nestjs/common` for validation errors and presentation
 ```typescript
 import { BadRequestException, HttpStatus } from '@nestjs/common';
 
-@Post('upload')
-async uploadSong(@UploadedFile() file: any) {
-  if (!file || !file.buffer) {
-    throw new BadRequestException('File is required');
+@Post('submit')
+async submitSeparation(@Body() dto: SubmitSeparationDto) {
+  if (!dto.audioUrl) {
+    throw new BadRequestException('audioUrl is required');
   }
   // ...
 }
@@ -107,9 +108,9 @@ All error responses follow this structure:
 {
   "success": false,
   "error": {
-    "code": "SONG_NOT_FOUND",
-    "message": "Song with ID 123 not found",
-    "statusCode": 404,
+    "code": "SEPARATION_PROVIDER_ERROR",
+    "message": "Provider failed to process separation",
+    "statusCode": 502,
     "timestamp": "2026-02-28T10:30:45.123Z",
     "requestId": "req-abc123-def456"
   }
@@ -150,8 +151,8 @@ Exceptions are logged with context including:
 
 Example log output:
 ```
-[GlobalExceptionFilter] SongNotFoundError: Song with ID xyz not found
-  statusCode=404 code=SONG_NOT_FOUND method=GET path=/songs/xyz userId=user123 requestId=req-abc123
+[GlobalExceptionFilter] SeparationProviderError: Provider failed to process separation
+  statusCode=502 code=SEPARATION_PROVIDER_ERROR method=POST path=/separations/submit userId=user123 requestId=req-abc123
 ```
 
 ## Structure

@@ -84,25 +84,6 @@ export class Env {
   }
 
   /**
-   * Firebase Cloud Storage bucket name.
-   *
-   * Required for uploading and storing files in Cloud Storage.
-   * Format: 'project-id.appspot.com'
-   *
-   * @returns Storage bucket name
-   * @throws Error if not configured
-   */
-  static get firebaseStorageBucket(): string {
-    const bucket = process.env.APP_FIREBASE_STORAGE_BUCKET?.trim();
-    if (!bucket) {
-      throw new Error(
-        'APP_FIREBASE_STORAGE_BUCKET environment variable is required',
-      );
-    }
-    return bucket;
-  }
-
-  /**
    * PoYo API key for stem separation.
    *
    * Required when using PoYo separation provider.

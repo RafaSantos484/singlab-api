@@ -1,11 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 import { credential } from 'firebase-admin';
-import { getStorage } from 'firebase-admin/storage';
-import type { Bucket } from '@google-cloud/storage';
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
-import { Env } from '../config/env.config';
 
 /**
  * Firebase Admin SDK provider.
@@ -39,7 +36,6 @@ export class FirebaseAdminProvider {
     }
 
     const credentialsPath = resolve('credentials.json');
-    const storageBucket = Env.firebaseStorageBucket;
 
     try {
       if (existsSync(credentialsPath)) {
@@ -52,11 +48,10 @@ export class FirebaseAdminProvider {
 
         this.app = admin.initializeApp({
           credential: credential.cert(credentials),
-          storageBucket,
         });
 
         FirebaseAdminProvider.logger.log(
-          `Firebase Admin initialized with bucket: ${storageBucket}`,
+          'Firebase Admin initialized successfully',
         );
 
         return this.app;
@@ -68,12 +63,9 @@ export class FirebaseAdminProvider {
 
       this.app = admin.initializeApp({
         credential: credential.applicationDefault(),
-        storageBucket,
       });
 
-      FirebaseAdminProvider.logger.log(
-        `Firebase Admin initialized with ADC and bucket: ${storageBucket}`,
-      );
+      FirebaseAdminProvider.logger.log('Firebase Admin initialized with ADC');
 
       return this.app;
     } catch (error) {
@@ -89,9 +81,5 @@ export class FirebaseAdminProvider {
 
   getAuth(): admin.auth.Auth {
     return admin.auth(this.getApp());
-  }
-
-  getBucket(): Bucket {
-    return getStorage(this.getApp()).bucket();
   }
 }

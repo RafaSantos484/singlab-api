@@ -15,15 +15,23 @@
 
 ## Project Context
 
-**SingLab API**: NestJS + Firebase Cloud Functions backend for karaoke/singing app.
+**SingLab API**: NestJS + Firebase Cloud Functions backend acting as a
+**stateless gateway** between the frontend and external AI services (e.g.
+PoYo stem separation). The API does **not** access Firestore or Cloud
+Storage — all Firebase data and file operations are handled by the frontend.
 
 **Stack**: NestJS v11+, TypeScript 5.7+, Firebase Functions v2, Jest, ESLint + Prettier
 
 **Key Paths**:
 - Entry: `src/main.ts` (Express + NestJS, cached for serverless)
 - Config: `src/config/env.config.ts` (static `Env` class)
-- Features: `src/features/` (feature modules pattern)
+- Features: `src/features/separations/` (only feature module)
 - Tests: `test/` (`.spec.ts` for unit, `.e2e-spec.ts` for integration)
+
+**API Endpoints** (only 2 routes + health check):
+- `POST /separations/submit` — Forward separation request to provider
+- `GET /separations/status` — Fetch task status from provider
+- `GET /` — Health check
 
 ## Code Style Rules
 
@@ -77,14 +85,17 @@
 
 ### Firebase Specifics
 - App instance cached in `main.ts` for serverless optimization
+- Firebase Admin SDK used **only for ID token verification** (Auth)
+- No Firestore or Cloud Storage access from the backend
 - Region: `southamerica-east1`
 - CORS preconfigured via `CORS_ORIGIN` env var
 - HTTP triggers use `onRequest` from `firebase-functions/v2/https`
 - Middleware order: CORS → JSON parser → URL-encoded → body trimmer
 
-### Database Integration
-- Create feature modules under `src/features/`
-- Use Repository pattern for data access
+### Adding External API Integrations
+- Create provider modules under `src/features/separations/providers/`
+- Keep services stateless — no Firestore reads/writes
+- Return raw provider responses to the frontend
 - Add config to `src/config/env.config.ts`
 - Add integration tests in `test/`
 
@@ -173,19 +184,16 @@ git log -1 --name-status
 - Documentation updates separate from code changes
 - Test additions can be separate from implementation if large
 
-**Example strategy:** For a feature with infrastructure, implementation, tests, and docs:
+**Example strategy:** For a feature with implementation, tests, and docs:
 ```bash
-git add src/infrastructure/...
-git commit -m "feat: add firestore provider infrastructure"
-
-git add src/features/song/...
-git commit -m "feat: implement song repository and service"
+git add src/features/separations/providers/...
+git commit -m "feat: add new separation provider integration"
 
 git add test/...
-git commit -m "test: add integration tests for song feature"
+git commit -m "test: add integration tests for new provider"
 
 git add docs/
-git commit -m "docs: add song feature documentation"
+git commit -m "docs: document new provider configuration"
 ```
 
 This creates a clean, reviewable history instead of one monolithic commit.
@@ -308,13 +316,10 @@ Use **domain-level errors** for business logic failures. Define custom error cla
 
 **Domain errors** (preferred for domain-level failures):
 ```typescript
-import { SongNotFoundError, SeparationConflictError } from '@/common/errors';
+import { SeparationConflictError } from '@/common/errors';
 
-if (!song) {
-  throw new SongNotFoundError(`Song with ID ${songId} not found`, { songId });
-}
-if (song.separatedSongInfo) {
-  throw new SeparationConflictError('Song already has a separation', { songId });
+if (isConflict) {
+  throw new SeparationConflictError('Task already in progress', { taskId });
 }
 ```
 
@@ -322,7 +327,7 @@ if (song.separatedSongInfo) {
 ```typescript
 import { HttpException, HttpStatus } from '@nestjs/common';
 
-if (!file) throw new HttpException('File is required', HttpStatus.BAD_REQUEST);
+if (!audioUrl) throw new HttpException('audioUrl is required', HttpStatus.BAD_REQUEST);
 ```
 
 ### Input Validation
@@ -360,9 +365,10 @@ Entry point: `dist/main.js` (Firebase Function)
 6. Firebase app instance cached in `main.ts` - don't recreate
 7. Respect `CORS_ORIGIN` configuration
 8. Use `DomainError` for business logic failures - domain errors abstract HTTP concerns
-9. Test isolation - tests independent, no order dependency
-10. Use NestJS logger - no `console.log` in production
-11. Keep docs in sync - update related docs when modifying code
+9. Keep services **stateless** - no Firestore/Storage access
+10. Test isolation - tests independent, no order dependency
+11. Use NestJS logger - no `console.log` in production
+12. Keep docs in sync - update related docs when modifying code
 
 ## Related Configuration Files
 - `tsconfig.json` - TypeScript strict mode
