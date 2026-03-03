@@ -100,4 +100,78 @@ export class SeparationsService {
       );
     }
   }
+
+  /**
+   * Stateless proxy: Submit separation request directly to provider.
+   *
+   * This method acts as a pure proxy to the separation provider.
+   * It does NOT interact with Firestore — that is the caller's responsibility.
+   *
+   * @param audioUrl - Signed URL of the audio file
+   * @param title - Song title for provider metadata
+   * @param providerName - Optional provider identifier
+   * @returns Provider-specific task metadata
+   * @throws {SeparationProviderError} Provider failed during submission
+   */
+  async submitSeparationProxy(
+    audioUrl: string,
+    title: string,
+    providerName?: string,
+  ): Promise<unknown> {
+    const provider = this.providerFactory.getProvider(providerName);
+
+    try {
+      const task = await provider.requestSeparation(audioUrl, title);
+      return task;
+    } catch (error) {
+      if (error instanceof SeparationProviderError) {
+        throw error;
+      }
+
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      throw new SeparationProviderError(
+        `Failed to submit separation request to provider ${provider.name}: ${errorMsg}`,
+        {
+          provider: provider.name,
+          originalError: errorMsg,
+        },
+      );
+    }
+  }
+
+  /**
+   * Stateless proxy: Refresh task status directly from provider.
+   *
+   * This method acts as a pure proxy to the separation provider.
+   * It does NOT interact with Firestore — that is the caller's responsibility.
+   *
+   * @param taskId - Provider-specific task identifier
+   * @param providerName - Optional provider identifier
+   * @returns Provider-specific task detail with current status
+   * @throws {SeparationProviderError} Provider failed during refresh
+   */
+  async refreshSeparationStatusProxy(
+    taskId: string,
+    providerName?: string,
+  ): Promise<unknown> {
+    const provider = this.providerFactory.getProvider(providerName);
+
+    try {
+      const detail = await provider.getTaskDetail(taskId);
+      return detail;
+    } catch (error) {
+      if (error instanceof SeparationProviderError) {
+        throw error;
+      }
+
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      throw new SeparationProviderError(
+        `Failed to refresh separation status from provider ${provider.name}: ${errorMsg}`,
+        {
+          provider: provider.name,
+          originalError: errorMsg,
+        },
+      );
+    }
+  }
 }

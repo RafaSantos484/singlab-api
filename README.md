@@ -16,7 +16,9 @@ and file operations are handled directly by the frontend.
   - `GET /separations/status` — fetch task status from provider
   - Currently supports PoYo AI separation service
   - Extensible architecture for adding more providers
-- Firebase Admin SDK for ID token verification (authentication only)
+- **Stateless separation proxy endpoints** (`POST /separations/submit`, `GET /separations/status`) for frontend-managed persistence
+- Media normalization with FFmpeg (planned)
+- Transcription support (planned)
 - Centralized environment configuration via `Env` class
 - Jest unit and e2e tests, ESLint, Prettier
 
