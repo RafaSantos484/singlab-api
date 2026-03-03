@@ -15,6 +15,7 @@ processed assets with metadata for playback and practice features.
 - **Stem separation endpoint** (`POST /songs/:songId/separations`) with pluggable provider support
   - Currently supports PoYo AI separation service
   - Extensible architecture for adding more providers
+- **Stateless separation proxy endpoints** (`POST /separations/submit`, `GET /separations/status`) for frontend-managed persistence
 - Media normalization with FFmpeg (planned)
 - Transcription support (planned)
 - Centralized environment configuration via `Env` class

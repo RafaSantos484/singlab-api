@@ -1,8 +1,15 @@
 # Stem Separations
 
-Submit stem separation tasks for songs via a provider-agnostic interface. The controller exposes `POST /songs/:songId/separations` to submit work, `GET /songs/:songId/separations/status` to refresh task status, and `PATCH /songs/:songId/separations/stems` to persist stem storage paths after the client uploads them. Provider responses are persisted into `separatedSongInfo.providerData`; stem storage paths are set via the PATCH endpoint after the client uploads the files. The audio URL is generated on-demand from the stored `rawSongInfo.path` using a signed URL.
+Submit stem separation tasks via two different APIs:
 
-## Request
+1. **Song-based API** (`/songs/:songId/separations`) - Full management including Firestore persistence
+2. **Stateless Proxy API** (`/separations/submit`) - Pure proxy to provider, no Firestore access
+
+## API Routing
+
+### Song-Based API (Full Management)
+
+Used when you need to manage separations through the API with Firestore persistence.
 
 - **URL**: `POST /songs/:songId/separations`
 - **Path Params**:
@@ -16,11 +23,11 @@ The `audioUrl` and `title` are automatically obtained from the song document (si
 The separation model and output type are hardcoded in the provider implementation (currently `base` model and `general` output type for PoYo).
 The song must exist and belong to the authenticated user.
 
-### Retry logic for failed separations
+#### Retry logic for failed separations
 
 If a previous separation attempt failed (status is `failed`), submitting a new separation request will automatically retry the separation with the same provider. This allows users to recover from transient provider errors or temporary unavailability without manually deleting the separation first. For any other status (`not_started`, `processing`, or `finished`), a conflict error is returned and the separation must be explicitly deleted before creating a new one.
 
-## Response
+#### Response
 
 `202 Accepted`
 ```json
@@ -35,7 +42,71 @@ If a previous separation attempt failed (status is `failed`), submitting a new s
 
 The exact response format depends on the provider implementation.
 
-## Refresh Status
+### Stateless Proxy API (Frontend Integration)
+
+Used by the frontend as a stateless proxy. The frontend handles all Firestore persistence.
+
+#### Submit Separation
+
+- **URL**: `POST /separations/submit`
+- **Query Params**:
+  - `provider` (string, optional): Separation provider to use (defaults to `poyo`).
+- **Body**:
+  ```json
+  {
+    "audioUrl": "https://storage.googleapis.com/...",
+    "title": "Song Title"
+  }
+  ```
+- **Auth**: Firebase bearer token (required in production).
+
+This endpoint is a pure proxy that forwards the request to the provider without any Firestore access or song validation. The frontend is responsible for:
+- Obtaining a signed URL for the audio file
+- Persisting the task metadata to Firestore after receiving the response
+- Managing the separation lifecycle
+
+**Response (202 Accepted):**
+```json
+{
+  "success": true,
+  "data": {
+    "task_id": "xxxx-xxxx-xxxx",
+    "created_time": "2026-02-28T00:00:00Z"
+  }
+}
+```
+
+#### Refresh Separation Status
+
+- **URL**: `GET /separations/status`
+- **Query Params**:
+  - `taskId` (string, required): Provider-specific task identifier
+  - `provider` (string, optional): Separation provider (defaults to `poyo`)
+- **Auth**: Firebase bearer token (required in production)
+
+This endpoint is a pure proxy that queries the provider for the current task status without any Firestore access.
+
+**Response (200 OK when finished/failed, 202 Accepted when processing):**
+```json
+{
+  "success": true,
+  "data": {
+    "task_id": "xxxx-xxxx-xxxx",
+    "status": "finished",
+    "created_time": "2026-02-28T00:00:00Z",
+    "stems": {
+      "vocals": "https://poyo-storage.com/vocals.mp3",
+      "accompaniment": "https://poyo-storage.com/accompaniment.mp3"
+    }
+  }
+}
+```
+
+## Full Song-Based API Details
+
+For the song-based endpoints (`/songs/:songId/separations`), see the detailed documentation below.
+
+## Refresh Status (Song-Based)
 
 - **URL**: `GET /songs/:songId/separations/status`
 - **Path Params**: `songId` (string, required)
@@ -84,7 +155,7 @@ All error responses follow this format:
 }
 ```
 
-## Update Stems
+## Update Stems (Song-Based)
 
 - **URL**: `PATCH /songs/:songId/separations/stems`
 - **Path Params**: `songId` (string, required)
