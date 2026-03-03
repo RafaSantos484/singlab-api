@@ -43,15 +43,6 @@ Warning: never set this to `true` in production.
 const skipAuth = Env.skipAuth; // true or false
 ```
 
-#### `APP_FIREBASE_STORAGE_BUCKET` (env var)
-
-Optional bucket name for Firebase Storage. If set, it overrides the automatic
-bucket resolution logic. Use the format `<project-id>.appspot.com`.
-
-```env
-APP_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
-```
-
 #### `separationProvider: string`
 
 Selected stem separation provider for audio processing. Default: `'poyo'`
