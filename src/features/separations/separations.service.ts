@@ -456,8 +456,7 @@ export class SeparationsService {
         throw error;
       }
 
-      const errorMsg =
-        error instanceof Error ? error.message : 'Unknown error';
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       throw new SeparationProviderError(
         `Failed to submit separation request to provider ${provider.name}: ${errorMsg}`,
         {
@@ -493,8 +492,7 @@ export class SeparationsService {
         throw error;
       }
 
-      const errorMsg =
-        error instanceof Error ? error.message : 'Unknown error';
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       throw new SeparationProviderError(
         `Failed to refresh separation status from provider ${provider.name}: ${errorMsg}`,
         {
