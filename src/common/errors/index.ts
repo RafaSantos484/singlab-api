@@ -1,7 +1,6 @@
 export {
   DomainError,
   isDomainError,
-  SongNotFoundError,
   SeparationConflictError,
   SeparationProviderError,
   SeparationProviderUnavailableError,

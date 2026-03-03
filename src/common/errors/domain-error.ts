@@ -28,12 +28,6 @@ export const isDomainError = (error: unknown): error is DomainError => {
   return error instanceof DomainError;
 };
 
-export class SongNotFoundError extends DomainError {
-  constructor(message: string, details?: Record<string, unknown>) {
-    super(message, 'SONG_NOT_FOUND', HttpStatus.NOT_FOUND, details);
-  }
-}
-
 export class SeparationConflictError extends DomainError {
   constructor(message: string, details?: Record<string, unknown>) {
     super(message, 'SEPARATION_CONFLICT', HttpStatus.CONFLICT, details);
