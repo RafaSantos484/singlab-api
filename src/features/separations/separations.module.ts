@@ -14,7 +14,6 @@ import { FirebaseAdminProvider } from '../../auth/firebase-admin.provider';
  * separation providers. No Firestore or Storage dependencies.
  */
 @Module({
-  imports: [SongsModule],
   controllers: [SeparationsController, SeparationsProxyController],
   providers: [
     FirebaseAdminProvider,
