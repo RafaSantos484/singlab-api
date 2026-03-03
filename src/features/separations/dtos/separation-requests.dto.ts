@@ -25,6 +25,16 @@ export class SubmitSeparationDto {
 }
 
 /**
+ * Query parameters with optional provider override.
+ */
+export class SeparationProviderQueryDto {
+  /** Provider identifier (defaults to 'poyo'). */
+  @IsOptional()
+  @IsString()
+  provider?: string;
+}
+
+/**
  * Query parameters for separation status checks.
  */
 export class SeparationStatusQueryDto {
