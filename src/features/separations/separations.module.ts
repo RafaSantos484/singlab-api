@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { SeparationsController } from './separations.controller';
+import { SeparationsProxyController } from './separations-proxy.controller';
 import { SeparationsService } from './separations.service';
 import { StemSeparationProviderFactory } from './providers/stem-separation-provider.factory';
 import { PoyoStemSeparationProvider } from './providers/poyo/poyo-separation.provider';
@@ -8,7 +9,7 @@ import { SongsModule } from '../songs/songs.module';
 
 @Module({
   imports: [SongsModule],
-  controllers: [SeparationsController],
+  controllers: [SeparationsController, SeparationsProxyController],
   providers: [
     SeparationsService,
     StemSeparationProviderFactory,
