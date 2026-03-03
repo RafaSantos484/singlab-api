@@ -4,19 +4,19 @@ SingLab is a web application focused on karaoke and singing practice. This
 repository contains the backend API, built with NestJS, TypeScript, and
 Firebase Cloud Functions.
 
-The API accepts audio inputs (uploaded files or approved links), normalizes the
-media, separates vocals from instrumental, transcribes lyrics, and stores the
-processed assets with metadata for playback and practice features.
+The API acts as a **stateless gateway** between the frontend and external AI
+services. It does not access Firestore or Cloud Storage — all Firebase data
+and file operations are handled directly by the frontend.
 
 ## Features
 
 - NestJS v11 with Express adapter, optimized for Firebase Functions v2
-- Async processing pipeline for audio ingestion and AI jobs
-- **Stem separation endpoint** (`POST /songs/:songId/separations`) with pluggable provider support
+- **Stateless stem separation proxy** with pluggable provider support
+  - `POST /separations/submit` — forward separation request to provider
+  - `GET /separations/status` — fetch task status from provider
   - Currently supports PoYo AI separation service
   - Extensible architecture for adding more providers
-- Media normalization with FFmpeg (planned)
-- Transcription support (planned)
+- Firebase Admin SDK for ID token verification (authentication only)
 - Centralized environment configuration via `Env` class
 - Jest unit and e2e tests, ESLint, Prettier
 
@@ -64,11 +64,10 @@ Edit `.env.dev` with required settings:
 PORT=5001
 CORS_ORIGIN=*
 SKIP_AUTH=true
-APP_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
 
-# For stem separation (optional in dev, required in production)
-SEPARATION_PROVIDER=poyo
+# Stem separation provider
 POYO_API_KEY=your-poyo-api-key
+POYO_API_BASE_URL=https://api.poyo.ai
 ```
 
 See [src/config/README.md](src/config/README.md) for complete configuration options.
@@ -132,17 +131,18 @@ npm run format
 ```
 .
 ├── src/
+│   ├── main.ts
+│   ├── app.module.ts
+│   ├── app.controller.ts
+│   ├── utils.ts
+│   ├── auth/                  # Firebase Auth guard + admin provider
 │   ├── config/
 │   │   └── env.config.ts
-│   ├── app.controller.ts
-│   ├── app.module.ts
-│   ├── main.ts
-│   └── utils.ts
+│   ├── common/                # Errors + global exception filter
+│   └── features/
+│       └── separations/       # Stem separation proxy (controller, service, providers)
 ├── test/
-│   ├── config/
-│   │   └── env.config.spec.ts
-│   ├── app.controller.spec.ts
-│   └── app.e2e-spec.ts
+│   └── app.spec.ts
 ├── dist/
 ├── .env.dev
 ├── .env.dev.example
@@ -155,17 +155,17 @@ npm run format
 └── tsconfig.json
 ```
 
-## Processing Pipeline (Planned)
+## API Endpoints
 
-1. Ingest audio from uploads or approved links.
-2. Normalize audio with FFmpeg (sample rate, channels, format).
-3. Separate stems (vocals and instrumental).
-4. Transcribe lyrics from the vocal stem.
-5. Persist assets (original, vocal, instrumental) and metadata.
-6. Emit job status updates for the frontend.
+| Method | Path | Body / Query | Description |
+|--------|------|-------------|-------------|
+| `GET` | `/` | — | Health check |
+| `POST` | `/separations/submit` | `{ audioUrl, title, provider? }` | Start a stem separation task |
+| `GET` | `/separations/status` | `?taskId=xxx&provider=poyo` | Get task status from provider |
 
-The separation and transcription providers are intentionally pluggable so the
-project can evolve between SaaS APIs and self-hosted models.
+Both `/separations/*` endpoints require a valid Firebase ID token.
+The backend returns the raw provider response — the frontend writes
+results to Firestore.
 
 ## Environment Configuration
 
@@ -177,7 +177,8 @@ The API uses a type-safe `Env` class in `src/config/env.config.ts`.
 | `CORS_ORIGIN` | `string` or `array` | `['http://localhost:3000']` | Allowed CORS origins |
 | `SKIP_AUTH` | `boolean` | `false` | Skip authentication (dev only) |
 | `NODE_ENV` | `string` | - | Environment name (dev, production, test) |
-| `APP_FIREBASE_STORAGE_BUCKET` | `string` | - | Firebase Cloud Storage bucket name |
+| `POYO_API_KEY` | `string` | - | PoYo stem separation API key |
+| `POYO_API_BASE_URL` | `string` | `https://api.poyo.ai` | PoYo API base URL |
 
 Example usage:
 
@@ -187,13 +188,13 @@ import { Env } from './config/env.config';
 const port = Env.port;
 const origins = Env.corsOrigin;
 const skipAuth = Env.skipAuth;
-const bucket = Env.firebaseStorageBucket;
+const poyoKey = Env.poyoApiKey;
 ```
 
 ## Firebase Service Account Credentials
 
-If you integrate Firebase Admin SDK features, set up credentials as described
-in [FIREBASE_CREDENTIALS.md](./FIREBASE_CREDENTIALS.md).
+The API uses Firebase Admin SDK solely for ID token verification.
+Set up credentials as described in [FIREBASE_CREDENTIALS.md](./FIREBASE_CREDENTIALS.md).
 
 ## Deployment
 
@@ -237,8 +238,8 @@ npm test
 
 ## Status
 
-This repository currently contains the initial NestJS/Firebase scaffold. Core
-audio processing features will be added next.
+The API is production-ready as a stateless separation gateway.
+All Firebase data and file operations are handled by the frontend.
 
 ### Cold Starts
 
